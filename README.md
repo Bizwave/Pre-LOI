@@ -1,0 +1,33 @@
+# BizWave Pre-LOI — Flash Review
+
+The pipeline behind the BizWave Flash Review: a CPA-reviewed pre-LOI financial review of a small-business
+acquisition, delivered within 24 business hours from CIM-level PDFs.
+
+**Code computes every figure. Claude reads messy pages and drafts language in four registered places.
+The CPA makes the judgments and signs.** It runs end to end with Claude switched off.
+
+## Start
+
+```bash
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"                               # add ,llm to call Claude
+pytest
+```
+
+Copy `.env.example` to `.env` to set an API key; without one the pipeline runs in no-LLM mode.
+
+## What is here
+
+- **SOP 50 10 8.1 financeability** (`finance/`): coverage at 1.25x on historical earnings, 10% equity with
+  the limited-sources cap, standby and amortizing seller notes, 10-year amortization, 7(a) loan cap,
+  lender-QoE trigger, maximum financeable price at the buyer's structure, sensitivity to an earnings miss.
+  `models/financeability_model.xlsx` is the same model in live Excel formulas; a test recalculates it
+  with LibreOffice and checks every row against the Python.
+- **Rules as data** (`rules/`): 27 add-back rows with lender views, support lists and seller questions;
+  flag thresholds; SBA parameters with sources. Drafts until confirmed.
+- **Footing checks** (`validate/`), **add-back classifier** (`classify/`), **Claude door with no-LLM mode
+  and run log** (`llm/`), **PDF inventory** (`ingest/`).
+
+Read `CLAUDE.md` before changing anything. Plan: `docs/build-plan.md`. Checklist: `tasks/sprint.md`.
+
+Client data never goes into this repository: live deals live in `deals/`, which git ignores.
