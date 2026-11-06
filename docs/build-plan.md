@@ -1,5 +1,7 @@
 # Flash Review build plan (summary)
 
+> Technical stack, database schema and packets: `docs/tech-plan.md`.
+
 The full plan, with market research and pricing, is the "BizWave Pre-LOI Offering — Market Research and
 Product Plan" doc (section B6). This page is the part Claude Code needs while building.
 

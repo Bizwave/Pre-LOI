@@ -15,6 +15,13 @@ Open items are Chan's to decide. Record the decision, date and reason; never del
 | D7 | List price $750 vs $495; pilot price $295 | — (not in code) | Before outreach |
 | D8 | No value range in any output (VS 100 line); confirm with the AICPA ethics hotline or counsel | Enforced: "maximum financeable price at your structure" only | Before the first live review |
 | D9 | Lender firewall: no lender-commissioned QoE on a deal where BizWave did buyer-side work | — (policy, not code) | Before outreach to lenders |
+| D10 | What "24 business hours" means for the SLA clock | Proposed: 24 clock hours skipping weekends and US federal holidays, in `rules/sla.yaml` | Day 8 |
+| D11 | Upload tool for buyers | Proposed: OneDrive "Request files" or a Dropbox file request | Day 8 |
+| D12 | Real sample CIMs inside Claude Code | Proposed: redacted or public samples for building; live deals only outside Claude Code | Day 1 |
+| D13 | Engagement letter signature | Proposed: terms consent at Stripe checkout plus an e-signed letter for pilots | Before outreach |
+| D14 | Delivery channel | Proposed: email the PDF and workbook, or an expiring share link | Day 8 |
+| D15 | Credit terms | Proposed: 100% of the fee, 120 days, any deal, not transferable, in `rules/commercial.yaml` | Day 8 |
+| D16 | Database and stack (`docs/tech-plan.md`) | Proposed: SQLite + SQLAlchemy + Alembic, Typer CLI, Streamlit console, docxtpl + LibreOffice, all local | Day 1 |
 
 ## Made
 
