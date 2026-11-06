@@ -31,3 +31,11 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local database files (the live database lives in BIZWAVE_DATA_DIR, outside the repo)
+*.db
+*.sqlite
+*.sqlite3
+
+# Personal Claude Code settings (the shared .claude/settings.json is committed)
+.claude/settings.local.json

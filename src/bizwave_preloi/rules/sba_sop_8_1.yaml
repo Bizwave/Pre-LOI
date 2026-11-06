@@ -1,0 +1,75 @@
+# SBA 7(a) change-of-ownership parameters used by the financeability calculator.
+#
+# STATUS: verified_against_sop_text is false. These values come from practitioner summaries of
+# SOP 50 10 8.1 (listed under sources). Before the first live Flash Review, Chan checks each value
+# against the SOP text itself, sets verified_against_sop_text: true and records the date and the
+# SOP section in `sop_section` for each item that has one.
+#
+# The calculator reads ONLY this file for SBA rules. Never write one of these numbers into code.
+version: 1
+sop: SBA SOP 50 10 8.1
+effective: 2026-10-01          # loans that receive an SBA loan number on or after this date
+verified_against_sop_text: false
+sources:
+  - https://starfieldsmith.com/2026/09/best-practices-change-of-ownership-transactions-under-sop-50-10-8-1-what-sba-lenders-need-to-know/
+  - https://beancount.io/blog/2026/09/23/sba-sop-50-10-8-1-change-of-ownership-equity-dscr-qoe-guide
+
+coverage:
+  # Debt service coverage required, by transaction type.
+  minimum_dscr:
+    initial_acquisition: 1.25
+    owner_buyout: 1.25
+    esop_cooperative: 1.25
+    business_expansion: 1.15
+  # Earnings the coverage may be measured on. Projections are not allowed.
+  earnings_bases: [last_fiscal_year, two_year_average]
+  projections_allowed: false
+  # Seller debt NOT on full standby is included in debt service, amortized over at most this many years.
+  non_standby_seller_debt_max_amortization_years: 10
+
+equity:
+  # Minimum injection as a share of total project cost (purchase price plus working capital,
+  # closing costs and other uses of proceeds). Cannot be reduced for an Initial Acquisition.
+  injection_share_of_project_cost: 0.10
+  # What the 10% is measured on, by transaction type. For an Owner Buyout the sources give the
+  # purchase price; for the others, total project cost.
+  injection_base:
+    initial_acquisition: project_cost
+    owner_buyout: purchase_price
+    business_expansion: project_cost
+    esop_cooperative: project_cost
+  # Transaction types where the lender may reduce or waive the injection with documented liquidity.
+  reducible_by_lender: [owner_buyout, business_expansion]
+  # Limited sources (standby seller debt, seller debt on full standby, non-controlling minority
+  # equity) may supply no more than this share of the REQUIRED injection.
+  limited_sources_max_share_of_required_injection: 0.50
+  # A seller note counts toward equity only on full standby: no principal or interest for the
+  # whole term of the 7(a) loan.
+  seller_note_counts_only_on_full_standby: true
+  # Minority investor equity counts as a limited source only below this ownership, with no control.
+  minority_investor_max_ownership: 0.20
+
+loan:
+  # The business portion of an acquisition loan amortizes over at most this many years.
+  business_max_amortization_years: 10
+  # Largest 7(a) loan.
+  max_7a_loan: 5000000
+  # Total debt is capped at the appraised business value. The Flash Review gives no value
+  # conclusion (AICPA VS 100 guardrail), so this cap is stated as a condition, not computed.
+  total_debt_capped_at_appraised_value: true
+
+lender_qoe:
+  # The lender must order an independent QoE when the business purchase price (excluding
+  # owner-occupied real estate) is at least this amount. A buyer-commissioned QoE does not satisfy it.
+  required_at_purchase_price: 3000000
+  applies_to: [initial_acquisition, business_expansion]
+
+seller_consulting_max_months: 24
+
+# A default rate for the Instant Screen only. A Flash Review uses the rate the buyer's lender
+# quoted, entered in the deal structure. The calculator warns when this default is stale.
+default_rate_assumption:
+  prime: 0.0675
+  prime_as_of: 2026-08-01
+  spread: 0.0275            # maximum spread over Prime as summarised by the sources; confirm the tier by loan size
+  stale_after_days: 60

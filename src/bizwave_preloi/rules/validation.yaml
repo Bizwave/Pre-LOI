@@ -1,0 +1,16 @@
+# Footing-check settings (src/bizwave_preloi/validate/footing.py).
+#
+# Statements in CIMs are usually rounded to whole dollars or thousands, so a total can differ from
+# the sum of its printed parts by rounding alone. The tolerance for one check, in the statement's
+# own units, is: base + per_line x (number of lines summed). Anything above that fails and goes
+# to the CPA.
+version: 1
+tolerance:
+  base: 1.0
+  per_line: 0.5
+# Ladder lines the checks recompute from the accounts (kind -> ladder output in pl_ladder.compute_pl).
+ladder_checks:
+  gross_profit: gross_profit
+  net_ordinary_income: operating_income
+  net_other_income: net_other
+  net_income: net_income

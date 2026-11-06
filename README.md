@@ -28,6 +28,7 @@ Copy `.env.example` to `.env` to set an API key; without one the pipeline runs i
 - **Footing checks** (`validate/`), **add-back classifier** (`classify/`), **Claude door with no-LLM mode
   and run log** (`llm/`), **PDF inventory** (`ingest/`).
 
-Read `CLAUDE.md` before changing anything. Plan: `docs/build-plan.md`. Checklist: `tasks/sprint.md`.
+Read `CLAUDE.md` before changing anything. Plan: `docs/build-plan.md`. Stack, database and packets:
+`docs/tech-plan.md`. Checklist: `tasks/sprint.md`.
 
 Client data never goes into this repository: live deals live in `deals/`, which git ignores.

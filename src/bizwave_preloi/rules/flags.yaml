@@ -1,0 +1,155 @@
+# Red-flag thresholds. CODE evaluates these against figures the pipeline computed; Claude may only
+# SUGGEST qualitative flags from CIM text (registered use flags.cim_qualitative) and the CPA keeps
+# or dismisses every flag.
+#
+# STATUS: DRAFT thresholds for Chan to confirm. The flag engine itself is built on Day 5
+# (tasks/sprint.md); the metric names below are its contract.
+#
+# Fields
+#   metric     name of a metric the flag engine computes (see `metrics` at the bottom)
+#   direction  above: flag when metric >= threshold | below: flag when metric <= threshold
+#   watch      threshold for severity "watch" (null = no watch level)
+#   serious    threshold for severity "serious" (null = no serious level)
+#   blocks_delivery  true = the Flash Review cannot go out while this flag is open
+version: 1
+status: draft
+updated: 2026-11-06
+rules:
+  - id: footing_failure
+    metric: unresolved_footing_failures
+    direction: above
+    watch: null
+    serious: 1
+    blocks_delivery: true
+    title: Figures do not foot
+    why: A total or ladder line in the source does not agree with its parts. Resolve before any figure is used.
+
+  - id: addbacks_large_share
+    metric: addbacks_share_of_reported_earnings
+    direction: above
+    watch: 0.30
+    serious: 0.50
+    title: Add-backs are a large share of earnings
+    why: The more of the earnings that comes from add-backs, the more of the price depends on support the seller has not yet shown.
+
+  - id: rejected_addbacks_material
+    metric: likely_rejected_share_of_adjusted_earnings
+    direction: above
+    watch: 0.05
+    serious: 0.15
+    title: Add-backs a lender is likely to reject
+    why: These are removed from supportable earnings before coverage is measured.
+
+  - id: revenue_decline
+    metric: revenue_change_last_fy
+    direction: below
+    watch: -0.05
+    serious: -0.15
+    title: Revenue fell in the last fiscal year
+    why: Lenders measure coverage on the last fiscal year or the two-year average; a decline lowers both.
+
+  - id: ttm_below_last_fy
+    metric: ttm_earnings_vs_last_fy
+    direction: below
+    watch: -0.10
+    serious: -0.20
+    title: Trailing twelve months below the last fiscal year
+    why: The lender may use the weaker figure, and a lender QoE covers the trailing twelve months.
+
+  - id: gross_margin_swing
+    metric: gross_margin_change_points
+    direction: above          # absolute change, in fraction of revenue (0.03 = 3 points)
+    watch: 0.03
+    serious: 0.06
+    title: Gross margin moved sharply
+    why: Often a cutoff, inventory or classification issue rather than a business change.
+
+  - id: earnings_unstable
+    metric: last_fy_vs_two_year_average_gap
+    direction: above          # absolute gap as a share of the two-year average
+    watch: 0.15
+    serious: 0.30
+    title: Last year and the two-year average tell different stories
+    why: The coverage basis a lender picks moves the financeable price.
+
+  - id: coverage_thin
+    metric: dscr_at_proposed_price
+    direction: below
+    watch: 1.40
+    serious: 1.25
+    title: Coverage at the proposed price is thin or below the SBA minimum
+    why: SOP 50 10 8.1 requires 1.25x on historical earnings for an Initial Acquisition.
+
+  - id: coverage_fragile
+    metric: dscr_after_10pct_earnings_miss
+    direction: below
+    watch: 1.25
+    serious: null
+    title: A 10% earnings miss breaks coverage
+    why: A lender QoE commonly trims earnings; little room is left.
+
+  - id: equity_short
+    metric: equity_shortfall
+    direction: above
+    watch: null
+    serious: 1
+    title: Equity injection below 10% of project cost
+    why: The 10% injection cannot be reduced for an Initial Acquisition, and limited sources count for at most half.
+
+  - id: sba_loan_over_cap
+    metric: sba_loan_over_cap
+    direction: above
+    watch: null
+    serious: 1
+    title: Loan needed exceeds the 7(a) maximum
+    why: The structure needs another source of debt or more equity.
+
+  - id: lender_qoe_required
+    metric: purchase_price_at_or_above_qoe_threshold
+    direction: above
+    watch: 1
+    serious: null
+    title: Lender will order its own QoE
+    why: At this price the lender must commission an independent QoE; plan time and cost for it in the LOI.
+
+  - id: owner_pay_without_replacement
+    metric: owner_pay_addback_without_replacement_salary
+    direction: above
+    watch: null
+    serious: 1
+    title: Owner pay added back with no replacement salary
+    why: Lenders deduct a market salary for whoever runs the business after closing.
+
+  - id: customer_concentration
+    metric: largest_customer_share
+    direction: above
+    watch: 0.15
+    serious: 0.25
+    title: One customer is a large share of revenue
+    why: Lenders and buyers discount concentrated revenue; ask for contract terms and history.
+
+  - id: monthly_data_missing
+    metric: monthly_data_missing
+    direction: above
+    watch: 1
+    serious: null
+    title: No monthly or trailing-twelve-month figures
+    why: Trends inside the year, seasonality and the trailing twelve months cannot be tested.
+
+# What each metric means. The flag engine implements each one in code with a unit test.
+metrics:
+  unresolved_footing_failures: Count of footing checks that failed and have no CPA resolution.
+  addbacks_share_of_reported_earnings: Total add-backs presented / reported earnings before add-backs, last fiscal year.
+  likely_rejected_share_of_adjusted_earnings: Add-backs rated likely_rejected / seller-adjusted earnings, last fiscal year.
+  revenue_change_last_fy: (Revenue last FY - revenue prior FY) / revenue prior FY.
+  ttm_earnings_vs_last_fy: (Supportable earnings TTM - last FY) / last FY. Needs a TTM period.
+  gross_margin_change_points: Absolute change in gross margin between the last two fiscal years.
+  last_fy_vs_two_year_average_gap: Absolute (last FY - two-year average) / two-year average, supportable earnings.
+  dscr_at_proposed_price: Coverage at the buyer's proposed price and structure, on the basis the calculator reports.
+  dscr_after_10pct_earnings_miss: Same, with supportable earnings reduced by 10%.
+  equity_shortfall: Required injection minus countable equity, in dollars (0 when met).
+  sba_loan_over_cap: 1 when the SBA loan needed exceeds the 7(a) maximum, else 0.
+  purchase_price_at_or_above_qoe_threshold: 1 when the proposed price is at or above the lender QoE threshold, else 0.
+  owner_pay_addback_without_replacement_salary: 1 when an owner_salary add-back is used and replacement_salary is 0, else 0.
+  largest_customer_share: Largest customer's share of revenue, when the CIM gives it.
+  monthly_data_missing: 1 when no monthly or TTM figures were provided, else 0.

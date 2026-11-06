@@ -1,0 +1,361 @@
+# Add-back rules: how a seller's or broker's add-back description is classified, and how an
+# SBA lender is likely to treat it. CODE applies this table. Claude may only pick a row id for
+# a description no pattern matched; the lender view always comes from this table or from a
+# CPA override with a written reason.
+#
+# STATUS: DRAFT. Every lender_view below is a starting position for typical SBA 7(a) lender
+# practice. Chan to confirm or change each row before the first live Flash Review, then set
+# status: confirmed and record the date in tasks/lessons.md.
+#
+# Matching: descriptions are normalized first (lower case, "&" -> " and ", apostrophes dropped so
+# "owner's" becomes "owners" and "wife's" becomes "wifes",
+# other punctuation -> space, spaces squeezed). Patterns are Python regular expressions searched
+# in that text. Rows are tried IN FILE ORDER and the first match wins, so specific rows sit above
+# general ones. `exclude` patterns veto a row.
+#
+# Fields
+#   id               stable key, also the subtype in this repository
+#   category         Level-1 code from taxonomy.yaml
+#   mvp_subtype      matching subtype in the MVP's qa_adjustments_catalog.py, or null
+#   effect           add_back (raises earnings) | deduct (lowers earnings)
+#   lender_view      likely_accepted | needs_support | likely_rejected
+#                    (for a deduct row: whether lenders will insist the item is removed)
+#   support_required documents a lender will ask for before accepting the adjustment
+#   seller_question  the question to put to the seller or broker, in plain words
+#   lender_note      why the view is what it is (shown to the CPA on review)
+version: 1
+status: draft
+updated: 2026-11-06
+# A row Claude picks for an unmatched description is applied only at or above this confidence;
+# below it the add-back is left for the CPA.
+claude_min_confidence: 0.75
+rules:
+
+  # ------------------------------------------------------------ definitional (ITDA)
+  - id: depreciation
+    name: Depreciation
+    category: "A"
+    mvp_subtype: null
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\bdepreciation\b', '\bdepr\b', '\bsection 179\b']
+    exclude: []
+    support_required: [Depreciation schedule or Form 4562, Three years of capital expenditure]
+    seller_question: What did the business spend on equipment and vehicles in each of the last three years?
+    lender_note: Accepted as a non-cash charge. Lenders then look at capital spending; enter a maintenance capex reserve when assets are old or spending is lumpy.
+
+  - id: amortization
+    name: Amortization
+    category: "A"
+    mvp_subtype: null
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\bamorti[sz]ation\b', '\bamort\b']
+    exclude: []
+    support_required: [Amortization schedule]
+    seller_question: What is being amortized, and does it relate to an earlier acquisition or loan?
+    lender_note: Accepted as a non-cash charge.
+
+  - id: interest_expense
+    name: Interest expense
+    category: "A"
+    mvp_subtype: null
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\binterest\b', '\bfinance charges?\b', '\bloan fees?\b']
+    exclude: ['\binterest income\b', '\binterest earned\b']
+    support_required: [Debt schedule showing every loan is repaid at closing]
+    seller_question: Which loans does this interest relate to, and will each be paid off at closing?
+    lender_note: Accepted when the debt does not transfer to the buyer. Interest on equipment loans or leases the buyer assumes stays in the cost base.
+
+  - id: income_taxes
+    name: Entity income taxes
+    category: "A"
+    mvp_subtype: null
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\bincome tax(es)?\b', '\btax provision\b', '\bfederal tax(es)?\b', '\bpte tax\b', '\bpass through entity tax\b']
+    exclude: ['\bpayroll\b', '\bproperty\b', '\bsales tax\b', '\buse tax\b', '\bexcise\b']
+    support_required: [Business tax returns]
+    seller_question: Is this tax paid by the company itself or by the owners personally?
+    lender_note: Entity-level income tax is added back. Most small sellers are pass-throughs, so a large tax line deserves a look.
+
+  # ------------------------------------------------------------ income to remove (deductions)
+  - id: government_support
+    name: Government support income (PPP, ERC, EIDL, grants)
+    category: "NO"
+    mvp_subtype: grant_income
+    effect: deduct
+    lender_view: likely_accepted
+    patterns: ['\bppp\b', '\bpaycheck protection\b', '\berc\b', '\bemployee retention\b', '\beidl\b', '\bgrants?\b', '\bforgiv', '\bstimulus\b', '\bcares act\b', '\brestaurant revitali[sz]ation\b']
+    exclude: []
+    support_required: [Award or forgiveness letter, Period the funds were recognised]
+    seller_question: Did the business receive PPP forgiveness, ERC refunds, grants or similar support, and in which year was it booked?
+    lender_note: Lenders remove one-time government support from earnings. If the CIM left it in, earnings are overstated.
+
+  - id: one_time_revenue
+    name: One-time revenue
+    category: "NR"
+    mvp_subtype: null
+    effect: deduct
+    lender_view: needs_support
+    patterns: ['\bone ?time (revenue|sales?|project|contract|order|job)s?\b', '\bnon ?recurring (revenue|sales?|income)\b']
+    exclude: []
+    support_required: [Customer revenue by year, The contract or order]
+    seller_question: Which customers or jobs drove this revenue, and will they recur?
+    lender_note: A buyer-side adjustment. A one-off job in the base year inflates historical earnings.
+
+  - id: gains_other_income
+    name: Gains and non-operating income
+    category: "NO"
+    mvp_subtype: other_income_misclass
+    effect: deduct
+    lender_view: likely_accepted
+    patterns: ['\bgains? on (the )?(sale|disposal)\b', '\binsurance (proceeds|claim|recovery|reimbursement)\b', '\binterest income\b', '\binterest earned\b', '\bdividends?\b', '\bother income\b', '\bmisc(ellaneous)? income\b', '\brental income\b', '\binvestment income\b']
+    exclude: []
+    support_required: [Detail of other income by year]
+    seller_question: What makes up other income, and does any of it come from the day-to-day business?
+    lender_note: Lenders take non-operating income out. Some "other income" is operating (vendor rebates, scrap sales); keep that in with support.
+
+  # ------------------------------------------------------------ forward-looking or unsupportable
+  - id: pro_forma
+    name: Pro forma or run-rate adjustment
+    category: "PF"
+    mvp_subtype: restructuring_savings
+    effect: add_back
+    lender_view: likely_rejected
+    patterns: ['\bpro ?forma\b', '\brun ?rate\b', '\bannuali[sz]', '\bfull year (effect|impact)\b', '\bprice increases?\b', '\bsynerg', '\bcost savings\b', '\bprojected\b', '\bforecast', '\bbudget(ed)?\b', '\banticipated\b', '\bexpected\b', '\bfuture\b']
+    exclude: []
+    support_required: []
+    seller_question: Is this based on something that already happened, or on an expected change?
+    lender_note: SOP 50 10 8.1 measures coverage on historical or adjusted historical earnings only; projections are excluded. Treat as upside for the buyer, not as financeable earnings.
+
+  - id: cash_unreported
+    name: Unreported cash income
+    category: "OT"
+    mvp_subtype: null
+    effect: add_back
+    lender_view: likely_rejected
+    patterns: ['\bcash (sales|income|revenue) not\b', '\bunreported\b', '\boff the books\b', '\bunder the table\b', '\bnot (on|in) the books\b']
+    exclude: []
+    support_required: []
+    seller_question: null
+    lender_note: Never financeable. Lenders underwrite to tax returns; income not reported to the IRS cannot support debt and raises an integrity question.
+
+  - id: covid_costs
+    name: COVID-related costs
+    category: "NR"
+    mvp_subtype: null
+    effect: add_back
+    lender_view: likely_rejected
+    patterns: ['\bcovid', '\bpandemic\b', '\bppe\b']
+    exclude: []
+    support_required: [Invoices and dates]
+    seller_question: Which costs were COVID-related, and in which months were they incurred?
+    lender_note: For FY2024 and later earnings, pandemic add-backs are rarely credible. Accept only with dated invoices.
+
+  # ------------------------------------------------------------ owner and family
+  - id: owner_payroll_taxes
+    name: Payroll taxes on owner pay
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\b(owners?|officers?|shareholders?)\b.*\bpayroll tax', '\bpayroll tax.*\b(owners?|officers?|shareholders?)\b']
+    exclude: []
+    support_required: [Owner W-2]
+    seller_question: How much of payroll tax relates to your own wages?
+    lender_note: Only the employer taxes on the owner pay being added back.
+
+  - id: owner_health_insurance
+    name: Owner health insurance
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\b(owners?|officers?|shareholders?|family)\b.*\b(health|medical|dental|vision)\b', '\b(health|medical|dental) insurance\b.*\b(owners?|officers?)\b']
+    exclude: []
+    support_required: [Premium invoice listing covered persons]
+    seller_question: Who is covered by this policy?
+    lender_note: Accepted for the seller and family; the cost of covering the new owner-operator is part of the replacement salary assumption.
+
+  - id: owner_retirement
+    name: Owner retirement contributions
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\b(owners?|officers?|shareholders?)\b.*\b(401 ?k|retirement|pension|sep|profit sharing)\b', '\b(401 ?k|retirement|pension|sep ira|profit sharing)\b.*\b(owners?|officers?)\b']
+    exclude: []
+    support_required: [Plan contribution report by participant]
+    seller_question: How much of the plan contribution went to you or your family?
+    lender_note: Only the owner and family share. Contributions for employees are a recurring cost.
+
+  - id: owner_life_insurance
+    name: Owner life insurance
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\blife insurance\b', '\bkey ?(man|person) insurance\b']
+    exclude: []
+    support_required: [Policy declarations page]
+    seller_question: Who owns the policy and who is the beneficiary?
+    lender_note: Seller's personal policy is added back. The SBA lender may require life insurance on the buyer; that is a buyer cost.
+
+  - id: owner_vehicle
+    name: Owner vehicle
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\b(owners?|officers?|personal)\b.*\b(auto|autos|vehicles?|cars?|trucks?|fuel|gas|mileage)\b', '\b(auto|vehicle|car)s?\b.*\b(owners?|personal)\b']
+    exclude: []
+    support_required: [Vehicle list with titles, Which vehicles stay with the seller]
+    seller_question: Which vehicles are personal, and will they stay with you after the sale?
+    lender_note: Accepted for vehicles that leave with the seller. Work vehicles that stay are an operating cost.
+
+  - id: owner_phone
+    name: Owner phone
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\b(owners?|personal|family)\b.*\b(phones?|cell|mobile)\b']
+    exclude: []
+    support_required: []
+    seller_question: Whose phones are on this plan?
+    lender_note: Small and usually accepted.
+
+  - id: owner_travel_meals
+    name: Owner travel, meals and memberships
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\b(owners?|personal|family)\b.*\b(travel|meals?|entertainment|club|dues|memberships?|vacations?)\b', '\b(travel|meals?|entertainment|vacations?)\b.*\b(owners?|personal|family)\b', '\bcountry club\b', '\bgolf\b']
+    exclude: []
+    support_required: [Card statements or receipts for the items claimed]
+    seller_question: Which trips, meals or memberships were personal, and can you show receipts?
+    lender_note: Often cut back by lenders without receipts. A round-number estimate is a warning sign.
+
+  - id: family_payroll
+    name: Family members on payroll
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\b(family|spouses?|wifes?|wives|husbands?|sons?|daughters?|relatives?|children|kids)\b.*\b(payroll|salary|salaries|wages?|compensation|comp|pay)\b', '\b(payroll|salary|salaries|wages?)\b.*\b(family|spouses?|wifes?|wives|husbands?|sons?|daughters?)\b']
+    exclude: []
+    support_required: [Payroll register, Role and hours of each family member]
+    seller_question: What work does each family member do, and will they stay after the sale?
+    lender_note: Full add-back only when no work is done. A working family member who leaves must be replaced at market pay.
+
+  - id: owner_salary
+    name: Owner or officer compensation
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\b(owners?|officers?|shareholders?|members?|partners?|principals?)\b.*\b(salary|salaries|wages?|compensation|comp|draws?|bonus(es)?|pay)\b', '\b(salary|salaries|wages?|compensation|draws?)\b.*\b(owners?|officers?|shareholders?)\b', '\bofficers? compensation\b', '\bguaranteed payments?\b']
+    exclude: []
+    support_required: [Owner W-2 or K-1 for each year, Payroll register]
+    seller_question: What did you pay yourself each year, and what do you do day to day?
+    lender_note: Added back, but the lender then deducts a market salary for whoever runs the business after closing. Set replacement_salary in the deal structure.
+
+  - id: owner_personal_unspecified
+    name: Personal or discretionary expenses (not itemized)
+    category: "EM"
+    mvp_subtype: owner_comp
+    effect: add_back
+    lender_view: likely_rejected
+    patterns: ['\bpersonal\b', '\bdiscretionary\b', '\b(owners?|shareholders?) (expenses?|benefits?|perks?)\b']
+    exclude: []
+    support_required: [Itemized list with amounts and receipts]
+    seller_question: Can you list each personal expense, its amount and where it sits in the P&L?
+    lender_note: An unitemized lump is usually cut. It becomes needs_support once itemized.
+
+  # ------------------------------------------------------------ other one-time items
+  - id: charitable
+    name: Charitable donations
+    category: "NR"
+    mvp_subtype: null
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\bcharit', '\bdonations?\b']
+    exclude: []
+    support_required: []
+    seller_question: Are any donations tied to customer relationships or local marketing?
+    lender_note: Discretionary and usually accepted. Sponsorships that bring in business are marketing.
+
+  - id: transaction_costs
+    name: Sale-process costs
+    category: "NR"
+    mvp_subtype: deal_costs
+    effect: add_back
+    lender_view: likely_accepted
+    patterns: ['\bsale of (the )?business\b', '\bsale process\b', '\bbusiness broker\b', '\bm and a\b', '\bacquisition (costs?|fees?)\b', '\btransaction (costs?|fees?)\b', '\bdeal (costs?|fees?)\b', '\bquality of earnings\b', '\bqoe\b', '\bdue diligence\b', '\bvaluation (fees?|report)\b', '\bexit planning\b']
+    exclude: []
+    support_required: [Invoices]
+    seller_question: Which advisers worked on the sale, and what did each cost?
+    lender_note: Accepted with invoices; these end at closing.
+
+  - id: legal_litigation
+    name: One-off legal costs and settlements
+    category: "NR"
+    mvp_subtype: litigation_settlement
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\blegal\b', '\battorneys?\b', '\blawsuits?\b', '\blitigation\b', '\bsettlements?\b', '\bjudgm?ents?\b']
+    exclude: []
+    support_required: [Invoices, Description of each matter and its status]
+    seller_question: Which matter were these legal costs for, is it closed, and could it recur?
+    lender_note: Routine legal work recurs. Only a closed, named matter is accepted.
+
+  - id: related_party
+    name: Related-party rent and fees
+    category: "PM"
+    mvp_subtype: shared_services_allocation
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\brelated party\b', '\b(rent|lease)\b.*\b(owners?|affiliates?|shareholders?|related)\b', '\b(owners?|affiliates?)\b.*\b(rent|lease|building|property)\b', '\bmanagement fees?\b', '\bintercompany\b']
+    exclude: []
+    support_required: [Current lease or fee agreement, The new lease the buyer will sign, Market rent evidence]
+    seller_question: Who owns the property or receives the fee, and what will the buyer pay after closing?
+    lender_note: Adjust to the post-closing cost, which can raise or lower earnings. Lenders underwrite the rent in the new lease, and accept a fee add-back only when the fee ends at closing.
+
+  - id: major_repairs
+    name: Major or one-time repairs
+    category: "NR"
+    mvp_subtype: major_maintenance
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\b(major|non ?recurring|one ?time|unusual|roof|hvac|deferred)\b.*\b(repairs?|maintenance|replacement)\b', '\brepairs?\b.*\b(one ?time|non ?recurring)\b']
+    exclude: []
+    support_required: [Invoices, Repairs expense for three years]
+    seller_question: What was repaired, and how often does something like this come up?
+    lender_note: Lenders often see repairs as recurring. A three-year repairs history settles it.
+
+  - id: write_offs
+    name: Write-offs and impairments
+    category: "NR"
+    mvp_subtype: one_time_write_off
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\bwrite ?offs?\b', '\bwritten off\b', '\bimpairment\b', '\bbad debts?\b', '\binventory (write|adjustment|obsolescence)']
+    exclude: []
+    support_required: [Detail of the item written off, Bad debt or inventory adjustments for three years]
+    seller_question: What was written off, and has anything similar happened in other years?
+    lender_note: Accepted only when the history shows it is unusual. Recurring bad debt is a cost of doing business.
+
+  - id: one_time_project
+    name: One-time projects and start-up costs
+    category: "NR"
+    mvp_subtype: one_time_consulting
+    effect: add_back
+    lender_view: needs_support
+    patterns: ['\bone ?time\b', '\bnon ?recurring\b', '\b(software|erp|system|website|crm)\b.*\b(implementation|conversion|migration|redesign|upgrade)\b', '\brebrand', '\brelocation\b', '\bmoving (costs?|expenses?)\b', '\bstart ?up\b', '\bpre ?opening\b', '\bseverance\b', '\brecruit(ing|ment)? (fees?|costs?)\b', '\bconsulting\b']
+    exclude: []
+    support_required: [Invoices, Start and end dates of the project]
+    seller_question: What was the project, when did it start and end, and is anything similar planned?
+    lender_note: Accepted when time-bound and invoiced. Start-up costs of a location that is now open are historical and can count; the new location's future profit cannot.
