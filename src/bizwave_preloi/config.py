@@ -1,0 +1,160 @@
+"""Settings: where things live and how Claude is switched. Every module reads these; none reads
+`os.environ` for them directly.
+
+    from bizwave_preloi.config import settings, ensure_data_dirs
+    s = ensure_data_dirs()          # settings, with the data folders created and checked
+    s.deals_dir, s.runlog_path, s.database_url, s.no_llm, s.llm_model ...
+
+Client files, the run log and the database live in a data folder OUTSIDE the repository, by default
+`~/BizWaveData` (`C:\\Users\\<you>\\BizWaveData` on Windows). A data folder inside the repository is
+refused; one inside a OneDrive / Dropbox style synced folder is allowed with a warning, because a
+sync client can corrupt an open SQLite database (docs/tech-plan.md section 3).
+
+A `.env` file in the repository folder is read once per process. It never overrides a variable
+already set in the environment, and it is not read at all when BIZWAVE_LOAD_DOTENV is off (the test
+suite turns it off so a developer's API key can never reach a real call).
+
+Plan: tasks/plans/2026-11-06_p1_settings.md
+"""
+from __future__ import annotations
+
+import os
+import warnings
+from dataclasses import dataclass
+from pathlib import Path
+from typing import FrozenSet, Mapping, Optional, Set
+
+APP_DIR_NAME = "BizWaveData"
+DEFAULT_MODEL = "claude-sonnet-5-5"
+# Folder-name fragments of common sync clients. A data folder under one of these gets a warning.
+SYNC_FOLDER_MARKERS = ("onedrive", "dropbox", "google drive", "icloud")
+
+_TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"0", "false", "no", "off"}
+
+
+class DataFolderError(ValueError):
+    """The configured data folder is not allowed (inside the repository)."""
+
+
+def _find_repo_root() -> Optional[Path]:
+    """The folder holding pyproject.toml and src/bizwave_preloi, or None when installed without it."""
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "pyproject.toml").is_file() and (parent / "src" / "bizwave_preloi").is_dir():
+            return parent
+    return None
+
+
+REPO_ROOT: Optional[Path] = _find_repo_root()
+
+
+@dataclass(frozen=True)
+class Settings:
+    data_dir: Path
+    deals_dir: Path
+    samples_dir: Path
+    runlog_path: Path
+    database_url: str
+    no_llm: bool
+    disabled_uses: FrozenSet[str]
+    llm_model: str
+    has_api_key: bool               # presence only: the key itself is never held here
+
+
+# --------------------------------------------------------------------------- building settings
+
+def _flag(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in _TRUE
+
+
+def _path(raw: str, home: Path) -> Path:
+    """`~` and `~/...` (or `~\\...`) against `home`; relative paths made absolute against the
+    current folder. Symlinks are not resolved."""
+    if raw == "~":
+        return home
+    if raw.startswith(("~/", "~\\")):
+        return home / raw[2:]
+    return Path(os.path.abspath(raw))
+
+
+def load_settings(env: Optional[Mapping[str, str]] = None, home: Optional[Path] = None) -> Settings:
+    """Settings from `env` (default: os.environ) and `home` (default: the user's home folder).
+    Pure: reads nothing else and creates nothing."""
+    env = os.environ if env is None else env
+    home = Path.home() if home is None else Path(home)
+
+    def text(name: str) -> str:
+        return (env.get(name) or "").strip()
+
+    data_dir = _path(text("BIZWAVE_DATA_DIR"), home) if text("BIZWAVE_DATA_DIR") else home / APP_DIR_NAME
+    runlog = _path(text("BIZWAVE_RUNLOG"), home) if text("BIZWAVE_RUNLOG") else data_dir / "runlog.jsonl"
+    database_url = text("BIZWAVE_DATABASE_URL") or "sqlite:///" + (data_dir / "bizwave.db").as_posix()
+    disabled = frozenset(u.strip() for u in text("BIZWAVE_LLM_DISABLED_USES").split(",") if u.strip())
+    return Settings(
+        data_dir=data_dir,
+        deals_dir=data_dir / "deals",
+        samples_dir=data_dir / "samples",
+        runlog_path=runlog,
+        database_url=database_url,
+        no_llm=_flag(env.get("BIZWAVE_NO_LLM")),
+        disabled_uses=disabled,
+        llm_model=text("BIZWAVE_LLM_MODEL") or DEFAULT_MODEL,
+        has_api_key=bool(text("ANTHROPIC_API_KEY")),
+    )
+
+
+# --------------------------------------------------------------------------- .env
+
+_dotenv_loaded: Set[Path] = set()
+
+
+def _dotenv_enabled() -> bool:
+    return os.environ.get("BIZWAVE_LOAD_DOTENV", "1").strip().lower() not in _FALSE
+
+
+def _load_dotenv(path: Optional[Path]) -> None:
+    """Read `path` into os.environ once per process, never overriding what is already set."""
+    if path is None or not _dotenv_enabled():
+        return
+    path = Path(os.path.abspath(path))
+    if path in _dotenv_loaded or not path.is_file():
+        return
+    from dotenv import load_dotenv
+    load_dotenv(path, override=False)
+    _dotenv_loaded.add(path)
+
+
+def settings(dotenv_path: Optional[Path] = None) -> Settings:
+    """Current settings: the .env file applied (see module doc), then built fresh from os.environ."""
+    default = REPO_ROOT / ".env" if REPO_ROOT else None
+    _load_dotenv(dotenv_path if dotenv_path is not None else default)
+    return load_settings()
+
+
+# --------------------------------------------------------------------------- data folders
+
+def _inside(child: Path, parent: Path) -> bool:
+    c = os.path.normcase(os.path.abspath(child))
+    p = os.path.normcase(os.path.abspath(parent))
+    return c == p or c.startswith(p.rstrip(os.sep) + os.sep)
+
+
+def ensure_data_dirs(s: Optional[Settings] = None) -> Settings:
+    """Check where the data folder is, then create it with deals/ and samples/ (safe to repeat).
+    Raises DataFolderError for a folder inside the repository, before creating anything."""
+    s = s or settings()
+    if REPO_ROOT is not None and _inside(s.data_dir, REPO_ROOT):
+        raise DataFolderError(
+            f"The data folder {s.data_dir} is inside the repository {REPO_ROOT}. Client files must "
+            f"live outside it: set BIZWAVE_DATA_DIR to a folder outside the repository "
+            f"(default ~/{APP_DIR_NAME}).")
+    synced = next((part for part in s.data_dir.parts
+                   if any(marker in part.lower() for marker in SYNC_FOLDER_MARKERS)), None)
+    if synced:
+        warnings.warn(
+            f"The data folder {s.data_dir} is inside a synced folder ('{synced}'). Keep the database "
+            f"out of synced folders: sync can corrupt an open SQLite file. Back it up into the synced "
+            f"folder instead.", UserWarning, stacklevel=2)
+    for folder in (s.data_dir, s.deals_dir, s.samples_dir):
+        folder.mkdir(parents=True, exist_ok=True)
+    return s
