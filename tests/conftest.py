@@ -1,6 +1,8 @@
-"""Shared test setup. Tests never call the real Claude API and never touch deals/."""
+"""Shared test setup. Tests never call the real Claude API, never read a .env file and never touch
+the real data folder or the repository's deals/ folder."""
 from __future__ import annotations
 
+import os
 from typing import List, Optional
 
 import pytest
@@ -9,18 +11,24 @@ from bizwave_preloi.llm import Reply
 from bizwave_preloi.ops import RunLog
 from bizwave_preloi.rules import reload
 
+_CLEARED = ("ANTHROPIC_API_KEY", "BIZWAVE_NO_LLM", "BIZWAVE_LLM_DISABLED_USES", "BIZWAVE_LLM_MODEL",
+            "BIZWAVE_RUNLOG", "BIZWAVE_DATABASE_URL")
+
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
-    """No API key, Claude not forced off, run log in a temp folder, rules re-read from disk."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("BIZWAVE_NO_LLM", raising=False)
-    monkeypatch.delenv("BIZWAVE_LLM_DISABLED_USES", raising=False)
-    monkeypatch.delenv("BIZWAVE_LLM_MODEL", raising=False)
-    monkeypatch.setenv("BIZWAVE_RUNLOG", str(tmp_path / "runlog.jsonl"))
+    """Every test: a temporary data folder, .env loading off, Claude settings cleared, rules re-read
+    from disk, and os.environ restored exactly afterwards (python-dotenv writes into it)."""
+    saved = dict(os.environ)
+    for name in _CLEARED:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("BIZWAVE_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("BIZWAVE_LOAD_DOTENV", "0")
     reload()
     yield
     reload()
+    os.environ.clear()
+    os.environ.update(saved)
 
 
 @pytest.fixture
