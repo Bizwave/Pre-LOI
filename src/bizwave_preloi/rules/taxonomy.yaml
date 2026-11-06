@@ -1,0 +1,31 @@
+# Level-1 adjustment categories. Codes are quoted: unquoted NO is read by YAML as false.
+# Copied from Bizwave_mvp_master backend/services/qoe/qa_taxonomy.py (QA_CATEGORIES, reviewer-approved
+# 2026-07-01) so that a Flash Review add-back lands in the same category in a later BizWave QoE.
+# Keep the codes identical to the MVP. Each row of addbacks.yaml names the matching MVP catalog
+# subtype (qa_adjustments_catalog.py) in `mvp_subtype`, or null for SMB-only rows.
+version: 1
+categories:
+  "A":
+    name: Definitional (ITDA)
+    description: Interest, taxes, depreciation, amortization.
+  "NR":
+    name: Non-recurring / one-time
+    description: One-off items such as deal fees, litigation, severance, system projects, write-offs, major maintenance. One-time income deducts.
+  "EM":
+    name: Employee and owner compensation
+    description: Owner and family pay against market, owner benefits and perks, capitalized labor.
+  "NO":
+    name: Non-operating
+    description: Gains and losses on disposal, insurance proceeds, government support (PPP, ERC), investment and other income.
+  "AO":
+    name: Accounting and out-of-period
+    description: Accrual true-ups, cutoff, revenue recognition, reclassifications, error corrections.
+  "PF":
+    name: Pro forma / run-rate
+    description: Forward-looking estimates such as savings, price changes, customer gains or losses. Not accepted for SBA coverage under SOP 50 10 8.1 (projections excluded).
+  "PM":
+    name: Perimeter
+    description: Acquisitions, divestitures, related-party and shared-service arrangements.
+  "OT":
+    name: Other
+    description: Anything not covered above.

@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bizwave-preloi"
+version = "0.1.0"
+description = "BizWave Flash Review: CPA-reviewed pre-LOI financial review pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "openpyxl>=3.1",
+    "pdfplumber>=0.11",
+]
+
+[project.optional-dependencies]
+# Claude is used in four registered places only (see src/bizwave_preloi/llm/register.py).
+# Everything runs without this extra installed (no-LLM mode).
+llm = ["anthropic>=0.121"]
+dev = ["pytest>=8", "reportlab>=4"]   # reportlab draws synthetic PDFs for ingestion tests
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+bizwave_preloi = ["rules/*.yaml", "llm/prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "excel: recalculates the Excel model with LibreOffice (skipped when soffice is not installed)",
+]
