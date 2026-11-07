@@ -48,6 +48,12 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   both-directions rule went into intake's source check but not into the backup-folder check next to it,
   and the `==` rule missed a case-sensitive name comparison. (source: P3 review round 2, should-fix 2 and
   nit 3)
+- [note] A fix can break what it fixes: round 2's per-file handling added a database lookup with no
+  "not found" case, and a state created earlier in the same run (the first of two identical files failed
+  to record) reached it, so one file stopped the run again. Every new lookup handles "not found"; every
+  per-item path is tested with an earlier item of the same run having failed. Same kind as round-1
+  should-fix 7 and round-2 should-fix 1: three rounds in one packet, so it must be promoted at close.
+  (source: P3 review round 3, should-fix 1)
 
 ## P2 database core (2026-11-06, branch `p2-database`)
 
