@@ -334,3 +334,133 @@ None; this is round 1.
   Go-ahead cases, fenced blocks, Lessons applied: fixed. "Not run yet." in a first-run section still
   counts as started (fails closed): left as is.
 - Master-plan notes 1–5: to be put to Chan as proposals at close; not built in this packet.
+
+## Round 3 (packet-reviewer, 6 Nov 2026, HEAD 54929ca, branch `w1-lessons-loop`)
+
+**Verdict: PASS WITH FIXES.** There are no blockers. Two should-fix items remain. Both concern the record and Chan's consent to CLAUDE.md, not code. **Do not merge until should-fix 1 is closed.** The two correction rounds are used up, but only blockers force the stop. Both items close with Chan's answer and edits to the records.
+
+**What I checked**
+- Read: CLAUDE.md, the plan, rounds 1–2 of the review, the three new commits, the whole `git diff main...HEAD`, the reviewer checklist, the template and the commands. I also checked every commit that touched the plan.
+- **Tests (my own run, no caches written):**
+  - Gate plus `tests/test_workflow.py`: 35 passed (12 + 23).
+  - Whole suite: 193 passed. Working tree clean.
+  - `git log --follow` on the gate still shows only 055b55f and 3de3632.
+- **Probes:** I ran `go_ahead_problems` from the scratchpad with `python -B` against:
+  - every plan in the repository;
+  - P2's plan, read with `git show` from `p2-database`;
+  - the W1 plan as it stood at 7376acf and at 9d8c482;
+  - about 40 synthetic variants.
+
+### Findings
+
+**[should-fix] The CLAUDE.md text on this branch does not have Chan's consent to its exact wording.**
+- **Where:** `/home/claude/pre-loi/CLAUDE.md:135`, `:127-130`, `:170-178`, `:199-201`; plan `:161-162`, `:184-197`.
+- **b:** the line applied in 4c9c1b3 uses the plan's wording. Chan's "b ok" (16:52) answered a different sentence shown in chat: "paste each new test's first result, and flag any test that passed before the code". At 17:29 he asked "what's the difference?". The plan marks b open and claims no consent, which is correct.
+- **The recorded explanation understates the difference.** The plan says "two words … no product impact" (`:195-196`) and "Same meaning" (`:162`).
+  - "Each new test" is broader than "each gate test". Read literally, it also covers new module tests; W1's own `tests/test_workflow.py` has no first run recorded.
+  - It would also make CLAUDE.md disagree with `execute.md:19` and `_TEMPLATE.md:55`, which both say "gate test".
+  - No test pins line 135 (checked with grep), so any choice needs no spec amendment.
+- **a, items 1–6:** the verbatim 16:53 list (`:142-148`) shows summaries, not the text. For example:
+  - item 4 leaves out "logs the change in `## Revision log`" (CLAUDE.md:127);
+  - item 6 leaves out the trigger list, "at session start", and "Edits to `.claude/` and the template need Chan's OK; edits to this file need his explicit consent" (`:173`, `:177-178`).
+  - The round-1 response said Chan was shown "the exact CLAUDE.md diff", but nothing on record shows that.
+  - By the plan's own standard for b, these are consents to described changes, not to exact text.
+- **Why it matters:** CLAUDE.md:3 and §6 require Chan's explicit consent, and `improve.md:27` requires "explicit consent to that exact text". Merging makes this text binding on every session.
+- **What must happen before merge:**
+  1. Show Chan the exact `git diff main...HEAD -- CLAUDE.md` (5 hunks), together with b's three options and what each changes:
+     - keep the applied line;
+     - use the chat wording, in which case `execute.md:19` and `_TEMPLATE.md:55` must also change, or the three disagree;
+     - revert to main's "Paste the failure summary", in which case CLAUDE.md lags `/execute` again.
+  2. Get one explicit consent to that text. Record the question and his answer verbatim, with times.
+  3. Apply any change in its own commit that quotes his words.
+  4. If he does not answer before merge, revert line 135 to main's text.
+  5. If the exact diff was in fact shown in chat earlier, paste it into the Reviewer Note with its time.
+
+**[should-fix] Three commit messages and the sprint list claim approvals that the corrected record now contradicts.**
+- **Where:** commits 4c9c1b3, 9bbd463 and 213c3f8; `/home/claude/pre-loi/tasks/sprint.md:18`.
+- This repeats promoted P1 lesson (d) (reviewer checklist item 12).
+- **4c9c1b3:** the subject says "("b ok" to this text)" and the body says "the consented wording". Plan `:161-162` says b answered different words and is still open.
+- **9bbd463:** the subject says "and go-ahead in the plan" and the body says "corrections W1.7-W1.10 listed as approved". The plan now says:
+  - the 17:04 answer was "not a go-ahead for this plan" (`:168-169`);
+  - d's details were only approved at 17:29;
+  - W1.10's lesson statuses are "not part of b–e" (`:68-69`).
+- **213c3f8 (the CLAUDE.md commit):** the body says "Approved by Chan … 16:26 'Go ahead' to the proposal". The proposal (`:29-33`) named only the §8 line; §4 and §6 were confirmed at 17:04.
+- **sprint.md:18:** it says "plan, CLAUDE.md diff and gate amendment confirmed by Chan (17:04)". The plan (`:159-160`) says the plan has no explicit confirmation from 17:04, and the gate amendment was "c ok" at 16:52. "Then review round 2" is also stale. `/sprint-status` reads this line.
+- **Results only notes 055b55f** (`:226-227`).
+- This corrects my round-2 statement that "none claims more than the record". That held only against the record before the questions were pasted.
+- **Fix:** no history rewrite. Add a Results note for each of these commits, as was done for 055b55f, and correct `sprint.md:18` now.
+
+**[nit] `tests/test_workflow.py:47-49` — a few off-template cases still pass silently.**
+- These tick forms on a plan with an unfilled first run all return no problems: `* [x]`, `+ [x]`, `1. [x]`, `-  [x]` (two spaces).
+- A first run pasted below a kept `<…>` placeholder counts as not run. That leaves the check silent until the first `- [x]` tick, which is the window W1 itself slipped through.
+- A Go-ahead line inside an unclosed fence is counted.
+- When `## Revision log` appears twice, the second section is ignored; a later row there still returns no problems.
+- **Fix:** broaden the tick pattern to `^\s*(?:[-*+]|\d+[.)])\s+\[[xX]\]`; treat the first run as unrecorded only if every non-blank line is a `<…>` placeholder; fail when a required heading appears twice.
+
+**[nit] Plan `:103-107` — Lessons applied is stale again.**
+- It still says the Go-ahead line "is left for Chan"; the line is now at `:203`.
+- It does not list the four new `[note]` lessons. The last one (state the impact with every question) bears directly on how b is put to Chan.
+
+**[nit] Plan `:128-151` — the "verbatim" blocks are excerpts.**
+- "(above)" at `:144` and the Freeze/Amend bullets at `:150-151` follow text that was left out. Mark the gaps with "[…]".
+- The chat question that "3. go ahead" answered (about 17:2x) is not on record verbatim; only the plan's own list at `:184-190` is. The Go-ahead line rests on that question.
+
+**[nit] Plan `:117` says the times are "taken from the commits".** The 17:24 row's commit, 7376acf, is at 17:25:18. Harmless, because 17:29 is later either way.
+
+**[nit] 7376acf bundles the review save, the lessons and two should-fix fixes.** `review-packet.md` step 5 asks for one commit per finding, and step 4 asks for lessons before fixing. Here the fix commit 4c04a82 comes before the lessons commit. Same kind as round 1's commit-splitting nit.
+
+**[nit] `tests/test_workflow.py:3` cites only "d yes" (16:52).** The fail-closed details were approved at 17:29 ("2. d - Yes - checks every plan, agreed"); cite that too.
+
+**[nit] `tasks/lessons.md`: the W1 "For Claude Code (Me)" section has 7 lessons.** `.claude/commands/lessons.md:28` caps it at six at close. Consolidate during `/improve`.
+
+### Earlier findings (round 2)
+- **Should-fix 1, missing Revision log row: fixed.**
+  - Rows added at `:114` (17:09, "no") and `:115` (17:24, "yes").
+  - Every other commit that touched the plan only ticks a box; I checked each one.
+  - Chan's literal "3. go ahead" at 17:29 comes after the latest row; the Go-ahead line is at `:203`.
+  - The check was RED at 7376acf (no Go-ahead line) and passes at HEAD, as the records say.
+- **Should-fix 2, questions not recorded: largely fixed.**
+  - The 16:43 and 16:53 questions are pasted at `:128-151`.
+  - d's details were shown and approved at 17:29 (`:198`).
+  - Left over: b (now should-fix 1), and the excerpt marking plus the 17:2x question (the excerpt nit).
+- **Should-fix 3, check skips silently: fixed.**
+  - `## Tasks` now gives "missing ## Sub-packets"; a hyphen in `## Gate - first run` gives "missing".
+  - A tick anywhere in the plan counts as started.
+  - Covered by test cases at `:125`, `:130-132` and `:142-145`. The remaining off-template cases are the first nit.
+- **Nit, W1.10 label:** fixed (`:68-69`).
+- **Nit, lessons.md "(proposed)":** fixed (`:12-14`).
+- **Nit, false REDs:**
+  - Fences: fixed (`:24`, `:58`; cases `:128-129`). Tilde, indented, 4-backtick and swallowed-heading fences all fail closed; only an unclosed fence fails open.
+  - "Not run yet.": left, with the stated reason that it fails closed. Accepted.
+- **Nit, LEGACY list:** comment fixed (`:19-21`). The exemptions now matter: the P1 plan lacks `## Revision log`, and the scaffold plan lacks all four headings. A guard against the list growing is deferred to close; open but acceptable.
+- **Nit, invalid-date and old-format cases:** fixed (`:126-127`).
+- **Nit, Lessons applied:** fixed for round 2, but stale again (see nit above).
+- **Round-2 master-plan notes 1–5:** deferred to close as proposals and still open. Note 5 is settled in practice by a literal "go ahead".
+
+### Your focus item 2: can `test_workflow.py` misfire?
+- **The template:** no. `test_template_carries_the_formats_and_is_not_started` pins no problems, and my probe agrees.
+- **A plan still in planning:** no, if it is copied from the template. Only non-placeholder text in the first-run section ("Not run yet.", "(not run)") turns it RED, which was accepted in round 2.
+- **P2's plan from `p2-database`:** passes.
+
+### Checklist items 11–13
+- **11. Lessons:**
+  - (a) was applied in round 2: a row, then a real stop; the next commit came only after Chan's 17:29 answer.
+  - (d) was not applied in the record; see should-fix 2.
+  - (b): no new gate tests.
+  - (c): no new refusal tests.
+- **12. Process record:**
+  - The Go-ahead is literal and comes after the latest row. But it came after every sub-packet was built; the records say so, and those rows are marked "no".
+  - The gate's first run is unchanged.
+  - Commit messages: see should-fix 2.
+- **13. Refusal tests:** no new ones; the P1 frozen exception is unchanged.
+- **Invariants 1–9:** untouched. No product code, prompts, rules or client data changed.
+
+### Master-plan notes
+1. **W1 and P2 will conflict in CLAUDE.md.** `git merge-tree w1-lessons-loop p2-database` reports a content conflict in CLAUDE.md: both branches append to the end of §8. Whoever merges second edits CLAUDE.md while resolving it. Keep both consented blocks word for word, show Chan the resolved §8, and record it.
+2. **P2's plan has the same gap W1 had in round 2.** Once W1 is on main, P2's plan is checked, and it passes. But P2's spec-amendment proposal (271211e, 17:01) has no Revision log row, the same pattern that let W1 pass in round 2. This is one for P2's reviewer.
+3. **A plan waiting for a go-ahead turns its branch's suite RED by design** (as at 7376acf). That collides with three existing rules:
+   - CLAUDE.md §4: run the suite before every commit;
+   - gate-runner GREEN as the test for verification;
+   - `verify-packet` step 5: a RED means write a lesson now.
+   Say in `/execute` or `/verify-packet` that this RED is the stop signal, not a defect.
+4. **Round-2 note 1 now has a real example.** W1's go-ahead came after the whole build, and the check passes. Comparing the go-ahead with the gate's first commit (`git log --diff-filter=A`) would catch this.
