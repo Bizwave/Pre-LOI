@@ -20,23 +20,24 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   plan exists covers only the proposal text. Write the plan, show Chan the plan and the exact CLAUDE.md
   diff, and wait; record the go-ahead with date and time in the Reviewer Note before writing the gate.
   Repeat of promoted lessons (a) and (d). (source: W1 review round 1, should-fix 1)
-- [note] A gate must not pin state the loop is designed to change (exact lesson counts, the exact list of
-  commands). Assert presence and destinations, not totals. (source: W1 review round 1, should-fix 2)
+- [note] Tests of the loop itself: never pin state the loop is meant to change (exact lesson counts, the
+  exact command list); assert presence and destinations. And fail closed: when a check cannot find what
+  it reads (a heading, a date), it reports a problem instead of skipping the file. (source: W1 review
+  round 1, should-fix 2; round 2, should-fix 3)
 - [promoted → /improve steps 2 and 5] `/improve` promotions to tests go in module test files
   (`tests/test_<module>.py`), never into an existing gate without a spec amendment, and are committed
   separately. (source: W1 review round 1, should-fix 3)
 - [note] Every edit to a plan's Scope or Sub-packets gets a Revision log row, including edits that only
   transcribe Chan's answers; the go-ahead check then forces the stop. Leaving the row out let W1 pass its
   own check. Repeat of promoted lesson (a). (source: W1 review round 2, should-fix 1)
-- [note] Record the questions exactly as Chan saw them in chat, with times, next to his answers. When a
-  chat question paraphrases a CLAUDE.md line, quote the exact sentence in chat and apply that sentence;
-  b's chat wording differed from the line applied. (source: W1 review round 2, should-fix 2)
-- [note] A mechanical check fails closed: when it cannot find what it reads (a heading, a date), it
-  reports a problem instead of skipping the file. (source: W1 review round 2, should-fix 3)
-- [note] Every question to Chan carries my recommendation, what each option changes now and later, and
-  what could break; ask only what his rules reserve for him (CLAUDE.md text, gate edits) or what is
-  genuinely his call, and own the rest. Questions without impact read as shifting responsibility.
-  (source: Chan's correction, 2026-11-06 17:29)
+- [note] Questions to Chan: show the exact text he is consenting to (for CLAUDE.md, the diff lines
+  themselves, never a summary), with my recommendation, what each option changes now and later, and what
+  could break; ask only what his rules reserve for him or what is genuinely his call. Record each
+  question and answer verbatim with times. (source: W1 review round 2, should-fix 2; round 3,
+  should-fix 1; Chan's correction 2026-11-06 17:29)
+- [note] When a record is corrected, re-check every commit message and status line (`tasks/sprint.md`)
+  that cited the old record, and note each overclaim in Results (no history rewrite). Repeat of promoted
+  lesson (d). (source: W1 review round 3, should-fix 2)
 
 ## P1 settings and data folder (2026-11-06, branch `p1-settings`)
 
