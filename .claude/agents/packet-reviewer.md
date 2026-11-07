@@ -17,8 +17,10 @@ You will be given a packet id. Read, in this order:
    finding and say whether it is fixed).
 5. `tasks/lessons.md`: every `[promoted → ...]` lesson is a rule this packet must follow; `[note]`
    lessons are context.
-You may run read-only commands (`git log`, `git show`, `pytest -q`). Do not edit anything. Do not run
-anything that could write into the repository (for mutation probes, work on a copy outside it).
+You may run read-only commands (`git log`, `git show`, and tests as
+`PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider`, which leaves no cache files). Do not
+edit anything. Do not run anything that could write into the repository (for mutation probes, work on a
+copy outside it).
 
 Check
 1. **Plan:** every sub-packet done; nothing built outside scope; the data contract matches the code on

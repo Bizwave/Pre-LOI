@@ -11,8 +11,9 @@ Review packet $ARGUMENTS independently and correct (CLAUDE.md section 6, steps 7
    plan, CLAUDE.md, `tasks/lessons.md` and the diff itself, so its judgment is independent of yours.
 3. Save its report VERBATIM to `tasks/reviews/YYYY-MM-DD_<packet>.md` (append a `## Round N` heading on
    later rounds) and show Chan the verdict and the blockers.
-4. **Capture lessons now:** for every blocker and should-fix, add a lesson to `tasks/lessons.md` with
-   `/lessons` (status `[note]` until `/improve` sorts it), citing the review round. Do this before fixing.
+4. **Capture lessons now:** for every blocker and should-fix, write a lesson in `tasks/lessons.md` in the
+   `/lessons` format (`.claude/commands/lessons.md`), status `[note]` until `/improve` sorts it, citing
+   the review round. Do this before fixing.
 5. **Correct:** fix every blocker and should-fix in the code, one commit per finding
    (`[Day N] P<n> fix: <finding>`); nits at your discretion. Never edit the gate.
    If a finding is wrong, do not fix it: write why under the finding in the review file for Chan.

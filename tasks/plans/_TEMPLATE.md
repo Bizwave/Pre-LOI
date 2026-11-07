@@ -48,7 +48,8 @@ Decisions: <D-numbers from docs/decisions.md, or none> · Packets: <earlier pack
 <Chan writes here. Claude answers each point below it, adds a Revision log row, and stops again.>
 
 ## Gate — first run
-<short failure summary showing the gate fails for the right reason>
+<per-test first-run result: each test fails for its own reason (the behaviour it checks); mark any test that
+passed before the code as a preservation check and say why>
 
 ## Spec amendment
 <only if the gate proved the plan wrong: what changed, why, date, Chan's OK>

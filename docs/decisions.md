@@ -6,9 +6,9 @@ Open items are Chan's to decide. Record the decision, date and reason; never del
 
 | # | Decision | Default in the code until decided | Needed by |
 |---|---|---|---|
-| D1 | Verify every value in `rules/sba_sop_8_1.yaml` against the SOP 50 10 8.1 text; then set `verified_against_sop_text: true` | Values from practitioner summaries; every result carries an "unverified" note | Before the first live review (18 Nov) |
-| D2 | Which earnings basis the headline maximum price uses: lower of last FY and two-year average, last FY, two-year average, or higher of | `lower_of` (conservative; the SOP lets the lender use either) | Day 2 |
-| D3 | Confirm or change the lender view on each of the 27 add-back rows, then set `status: confirmed` | Draft views in `rules/addbacks.yaml` | Day 4 (Chan doing D1–D3 on Tue 10 Nov) |
+| D1 | Verify every value in `rules/sba_sop_8_1.yaml` against the SOP 50 10 8.1 text; then set `verified_against_sop_text: true` | Values from practitioner summaries; every result carries an "unverified" note | Before the first live review (18 Nov) (Chan: Tue 10 Nov) |
+| D2 | Which earnings basis the headline maximum price uses: lower of last FY and two-year average, last FY, two-year average, or higher of | `lower_of` (conservative; the SOP lets the lender use either) | Day 2 (Chan: Tue 10 Nov) |
+| D3 | Confirm or change the lender view on each of the 27 add-back rows, then set `status: confirmed` | Draft views in `rules/addbacks.yaml` | Day 4 (Chan: Tue 10 Nov) |
 | D4 | Confirm the flag thresholds in `rules/flags.yaml` | Draft thresholds | Day 5 |
 | D5 | Confidence at which Claude's add-back pick is applied without the CPA | 0.75 (`claude_min_confidence`) | Day 4, after the accuracy report |
 | D6 | Model for the four Claude uses | `claude-sonnet-5-5` for all (`BIZWAVE_LLM_MODEL`) | Day 3 |
