@@ -35,6 +35,8 @@ SCRIPT_LOCATION = "bizwave_preloi.db:migrations"
 
 
 def _config(script_location: str = SCRIPT_LOCATION) -> Config:
+    # P2's frozen gate (tests/plans/test_2026_11_06_p2_database.py) calls _config() to read the migration
+    # head: keep this name and its default.
     cfg = Config()
     cfg.set_main_option("script_location", script_location)
     return cfg
