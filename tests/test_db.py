@@ -758,3 +758,57 @@ def test_other_deal_updates_check_the_status_too(db_url):
             with session_scope(db_url) as b:
                 repo.transition(b, "acme-hvac", "ready", by="b")
             deal.industry = "HVAC services"
+
+
+# --------------------------------------------------------------------------- undo names its database (P2.12, Chan 19:00)
+# Review round 3, should-fix 2: a bare `downgrade` defaulted to the live database in the data folder and
+# removed every table. Undo now needs the database named; a URL typed where a revision belongs is refused.
+
+def _live_deal():
+    """The data folder's database (the test's temporary data folder), holding one deal."""
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.migrate import upgrade
+    from bizwave_preloi.db.session import session_scope
+
+    upgrade()
+    with session_scope() as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+
+
+def _live_deals():
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+    with session_scope() as s:
+        return s.query(repo.Deal).count()
+
+
+def test_downgrade_without_a_named_database_is_refused():
+    from bizwave_preloi.db.migrate import downgrade
+
+    _live_deal()
+    with pytest.raises(ValueError, match="name the database"):
+        downgrade()
+    assert _live_deals() == 1
+
+
+@pytest.mark.parametrize("argv", [["downgrade"], ["downgrade", "base"], ["downgrade", "--revision", "-1"]])
+def test_cli_undo_without_url_is_refused(argv, capsys):
+    from bizwave_preloi.db.__main__ import main
+
+    _live_deal()
+    with pytest.raises(SystemExit) as exit_:
+        main(argv)
+    assert exit_.value.code == 2 and "--url" in capsys.readouterr().err
+    assert _live_deals() == 1
+
+
+def test_cli_refuses_a_url_given_as_a_revision(tmp_path, capsys):
+    from bizwave_preloi import config
+    from bizwave_preloi.db.__main__ import main
+
+    elsewhere = tmp_path / "x.db"
+    with pytest.raises(SystemExit) as exit_:
+        main(["upgrade", "sqlite:///" + elsewhere.as_posix()])
+    assert exit_.value.code == 2 and "looks like a database URL" in capsys.readouterr().err
+    assert not elsewhere.exists()
+    assert not (config.settings().data_dir / "bizwave.db").exists()       # no stray database either

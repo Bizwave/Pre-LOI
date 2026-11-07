@@ -1,6 +1,7 @@
 """python -m bizwave_preloi.db upgrade|downgrade|current [--url URL] [REVISION | --revision REVISION]
 
     python -m bizwave_preloi.db downgrade --url sqlite:///C:/path/bizwave.db base     # remove everything
+    (downgrade always needs --url: it never defaults to the data folder's live database)
 
 Without --url the database in the data folder is used (settings().database_url).
 """
@@ -27,6 +28,11 @@ def main(argv=None) -> int:
     revision = args.target or args.revision
     if args.action == "current" and revision:
         parser.error("`current` takes no revision")
+    if revision and "://" in revision:
+        parser.error(f"{revision!r} looks like a database URL, not a revision; give it with --url")
+    if args.action == "downgrade" and not args.url:
+        parser.error("downgrade removes tables and their data, so name the database with --url "
+                     "(it never defaults to the data folder's database)")
     try:
         if args.action == "upgrade":
             upgrade(args.url, revision or "head")

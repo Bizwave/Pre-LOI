@@ -3,7 +3,7 @@ these work from any folder and from an installed copy.
 
     upgrade()                      # the data folder's database, to the newest revision
     upgrade(url, "head")           # any database URL
-    downgrade(url, "-1")           # one step back ("base" removes everything)
+    downgrade(url, "-1")           # one step back ("base" removes everything); url is required
     current_revision(url)          # e.g. "0001_core", or None for an empty database
 
 Schema changes only ever go through a new revision file in migrations/versions/, tested
@@ -81,6 +81,11 @@ def upgrade(url: Optional[str] = None, revision: str = "head") -> None:
 
 
 def downgrade(url: Optional[str] = None, revision: str = "-1") -> None:
+    """Step a database back. It removes tables and their data, so the database must be named: it never
+    defaults to the data folder's (live) database (Chan, P2 review round 3, 2026-11-06)."""
+    if url is None:
+        raise ValueError("downgrade removes tables and their data: name the database explicitly "
+                         "(downgrade(url, ...); on the command line, --url sqlite:///...)")
     _require_existing(url)
     _run(command.downgrade, url, revision)
 
