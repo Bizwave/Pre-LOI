@@ -134,8 +134,13 @@ def add_document(s: Session, deal_id: str, path: Path, *, kind: str,
     existing = s.scalar(sa.select(Document).where(Document.deal_id == deal_id, Document.sha256 == digest))
     if existing is not None:
         return existing
+    stored_path = relative.as_posix()
+    if s.scalar(sa.select(Document.id).where(Document.deal_id == deal_id, Document.stored_path == stored_path)):
+        raise ValueError(f"{stored_path} is already recorded for deal {deal_id!r} with different content. "
+                         f"Save the new file under a new name (e.g. {file.stem}-v2{file.suffix}) and add that; "
+                         f"the recorded file must stay as it was, so figures read from it still trace.")
     document = Document(deal_id=deal_id, filename=file.name, kind=kind, sha256=digest, size_bytes=len(data),
-                        stored_path=relative.as_posix(), received_at=received)
+                        stored_path=stored_path, received_at=received)
     s.add(document)
     return document
 

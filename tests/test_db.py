@@ -316,7 +316,7 @@ FIRST_MIGRATION_NAMES = {
     "fk_pages_document_id_documents", "fk_pages_run_id_pipeline_runs", "fk_pipeline_runs_deal_id_deals",
     "ix_deal_events_deal_id_at",
     "pk_customers", "pk_deal_events", "pk_deals", "pk_documents", "pk_pages", "pk_pipeline_runs",
-    "uq_customers_email", "uq_documents_deal_id", "uq_pages_document_id",
+    "uq_customers_email", "uq_documents_deal_id", "uq_documents_deal_id_stored_path", "uq_pages_document_id",
 }
 
 
@@ -462,3 +462,53 @@ def test_every_way_to_delivery_passes_ready():
                 todo.append(nxt)
     assert ("delivered", None, True) in seen
     assert not any(status == "delivered" and not ready for status, _, ready in seen)
+
+
+# --------------------------------------------------------------------------- one file, one row (P2.9, Chan 17:59)
+# Review round 1, should-fix 3: a file overwritten in place and added again gave two rows with one
+# stored_path, so a source reference to the first row would open the new file (invariant 1).
+
+def test_a_different_file_at_a_recorded_path_is_refused(db_url):
+    from bizwave_preloi import config
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.models import Document
+    from bizwave_preloi.db.session import session_scope
+
+    folder = config.settings().deals_dir / "acme-hvac" / "inputs"
+    folder.mkdir(parents=True)
+    cim = folder / "cim.pdf"
+    cim.write_bytes(b"%PDF-1.4 first version\n")
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        first = repo.add_document(s, "acme-hvac", cim, kind="cim")
+        s.flush()
+        first_sha = first.sha256
+    cim.write_bytes(b"%PDF-1.4 revised version, saved over the first\n")
+    with session_scope(db_url) as s:
+        with pytest.raises(ValueError, match="cim-v2.pdf|new name"):
+            repo.add_document(s, "acme-hvac", cim, kind="cim")
+        assert not s.new
+    (folder / "cim-v2.pdf").write_bytes(b"%PDF-1.4 revised version, saved under a new name\n")
+    with session_scope(db_url) as s:
+        repo.add_document(s, "acme-hvac", folder / "cim-v2.pdf", kind="cim")
+    with session_scope(db_url) as s:
+        rows = {d.stored_path: d.sha256 for d in s.query(Document)}
+    assert rows["inputs/cim.pdf"] == first_sha                 # the first record is untouched
+    assert set(rows) == {"inputs/cim.pdf", "inputs/cim-v2.pdf"}
+
+
+def test_the_database_refuses_two_rows_for_one_path(db_url):
+    import sqlalchemy as sa
+
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.models import Document
+    from bizwave_preloi.db.session import session_scope
+    from bizwave_preloi.db.types import utcnow
+
+    with pytest.raises(sa.exc.IntegrityError, match="UNIQUE"):
+        with session_scope(db_url) as s:
+            repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+            for digest in ("a" * 64, "b" * 64):
+                s.add(Document(deal_id="acme-hvac", filename="cim.pdf", kind="cim", sha256=digest,
+                               size_bytes=1, stored_path="inputs/cim.pdf", received_at=utcnow()))
+            s.flush()

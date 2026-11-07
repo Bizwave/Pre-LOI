@@ -88,7 +88,10 @@ class DealEvent(Base):
 
 class Document(Base):
     __tablename__ = "documents"
-    __table_args__ = (sa.UniqueConstraint("deal_id", "sha256"),)
+    # One row per content and one row per file: a different file at a recorded path is refused (repo).
+    # The second needs an explicit name: the convention names a unique constraint by its first column.
+    __table_args__ = (sa.UniqueConstraint("deal_id", "sha256"),
+                      sa.UniqueConstraint("deal_id", "stored_path", name="uq_documents_deal_id_stored_path"))
     id: Mapped[int] = mapped_column(sa.Integer, primary_key=True)
     deal_id: Mapped[str] = mapped_column(sa.ForeignKey("deals.id"))
     filename: Mapped[str] = mapped_column(sa.String(255))

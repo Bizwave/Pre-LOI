@@ -87,6 +87,7 @@ def _create_tables() -> None:
         sa.Column("stored_path", sa.String(1024), nullable=False),
         sa.Column("received_at", _dt(), nullable=False),
         sa.UniqueConstraint("deal_id", "sha256"),
+        sa.UniqueConstraint("deal_id", "stored_path", name="uq_documents_deal_id_stored_path"),
     )
     op.create_table(
         "pipeline_runs",
