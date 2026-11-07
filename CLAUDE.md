@@ -55,8 +55,9 @@ The CPA owns judgment and signs.**
 6. **The lender view comes from the rules table or a CPA override with a reason.** Never from Claude.
 7. **Footing failures block delivery** until the CPA resolves them (`rules/flags.yaml`,
    `footing_failure`). Nothing in `validate/` changes a figure.
-8. **Client data never enters git.** Live deals live in `deals/<deal-id>/` (git-ignored, as is the
-   run log). Tests and fixtures use synthetic data only; refer to deals by code name.
+8. **Client data never enters git.** Live deals live in `BIZWAVE_DATA_DIR/deals/<deal-id>/`, outside
+   the repository, as do the run log and the database (`config.ensure_data_dirs` refuses a data
+   folder inside the repository). Tests and fixtures use synthetic data only; refer to deals by code name.
 9. **YAML gotcha:** quote category codes. Unquoted `NO` is read as `false`. The loader refuses it.
 
 ## 4. Commands
@@ -67,7 +68,7 @@ pytest                             # whole suite, ~3 seconds; run it before ever
 pytest tests/plans/test_YYYY_MM_DD_<packet>.py -v   # one packet's gate
 pytest -m "not excel"              # skip the LibreOffice parity test
 python scripts/build_financeability_model.py   # rewrite models/financeability_model.xlsx
-python scripts/pdf_inventory.py deals/samples  # which sample pages have a text layer
+python scripts/pdf_inventory.py   # which sample pages have a text layer (<data folder>/samples)
 ```
 
 Slash commands for the packet loop (section 6), in `.claude/commands/`:
@@ -99,7 +100,7 @@ models/               financeability_model.xlsx (live formulas, generated)
 docs/                 master plan (build-plan, tech-plan), decisions, MVP reuse audit
 tasks/                sprint.md, plans/ (packet plans + _TEMPLATE.md), research/, reviews/, lessons.md
 .claude/              settings.json (deny rules), commands/ (the loop), agents/ (gate-runner, packet-reviewer)
-deals/                live client work (git-ignored); prefer BIZWAVE_DATA_DIR outside the repo
+deals/                git-ignored safety net only; live client work is in BIZWAVE_DATA_DIR (config.py)
 ```
 
 ## 6. The packet loop (binding)

@@ -16,6 +16,14 @@ pytest
 
 Copy `.env.example` to `.env` to set an API key; without one the pipeline runs in no-LLM mode.
 
+Client files, the run log and the database live in a data folder **outside the repository**, by
+default `C:\Users\<you>\BizWaveData` (`~/BizWaveData` on a Mac); set `BIZWAVE_DATA_DIR` to move it.
+Keep it out of OneDrive, Dropbox, Google Drive or iCloud: sync can corrupt the open database. Put
+sample PDFs in its `samples` folder and run `python scripts/pdf_inventory.py`.
+
+If you move the data folder (or the run log), also add a matching `Read(...)` deny rule to
+`.claude/settings.json`: the rule there only covers the default `~/BizWaveData`.
+
 ## What is here
 
 - **SOP 50 10 8.1 financeability** (`finance/`): coverage at 1.25x on historical earnings, 10% equity with
@@ -31,4 +39,4 @@ Copy `.env.example` to `.env` to set an API key; without one the pipeline runs i
 Read `CLAUDE.md` before changing anything. Plan: `docs/build-plan.md`. Stack, database and packets:
 `docs/tech-plan.md`. Checklist: `tasks/sprint.md`.
 
-Client data never goes into this repository: live deals live in `deals/`, which git ignores.
+Client data never goes into this repository: live deals live in the data folder outside it.

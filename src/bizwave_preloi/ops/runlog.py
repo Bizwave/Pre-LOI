@@ -1,7 +1,8 @@
 """Append-only run log (JSON lines): every Claude call, and later SLA timestamps and credits.
 
-The file holds prompts' outputs for client deals, so it lives under deals/ and is git-ignored.
-Path: $BIZWAVE_RUNLOG, default deals/runlog.jsonl.
+The file holds model outputs for client deals, so it lives in the data folder outside the
+repository: `settings().runlog_path` (BIZWAVE_RUNLOG, default <data folder>/runlog.jsonl).
+P15 moves these records into the `llm_calls` table.
 """
 from __future__ import annotations
 
@@ -11,12 +12,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
-DEFAULT_PATH = Path("deals") / "runlog.jsonl"
+from ..config import ensure_data_dirs
 
 
 class RunLog:
     def __init__(self, path: Optional[os.PathLike] = None):
-        self.path = Path(path or os.environ.get("BIZWAVE_RUNLOG") or DEFAULT_PATH)
+        # The default path goes through ensure_data_dirs(), so a data folder inside the repository
+        # is refused here too (config.DataFolderError).
+        self.path = Path(path) if path else ensure_data_dirs().runlog_path
 
     def append(self, event: str, **fields: Any) -> Dict[str, Any]:
         record = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "event": event, **fields}

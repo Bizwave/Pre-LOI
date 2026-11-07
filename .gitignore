@@ -1,4 +1,5 @@
-# Client data never goes into git. Each live deal lives in deals/<deal-id>/ on disk only.
+# Client data never goes into git. Live deals live in BIZWAVE_DATA_DIR outside the repository;
+# deals/ stays ignored as a safety net in case a client file lands here by mistake.
 deals/*
 !deals/README.md
 *.pdf

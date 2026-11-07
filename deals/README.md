@@ -1,5 +1,8 @@
 # deals/
 
-Live client deals live here on disk only, one folder per deal (`deals/<deal-id>/`).
-Everything in this folder except this README is git-ignored. Never move client files into
-`tests/` or anywhere else that is committed; tests use synthetic data only.
+Not where live deals go. Live client work lives in the data folder outside the repository
+(`BIZWAVE_DATA_DIR`, default `C:\Users\<you>\BizWaveData` or `~/BizWaveData`), and the app refuses a
+data folder inside the repository (`config.ensure_data_dirs`).
+
+This folder stays git-ignored as a safety net: if a client file ever lands here by mistake, it still
+cannot be committed. Tests use synthetic data only.

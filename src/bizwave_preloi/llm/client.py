@@ -7,8 +7,9 @@
 
 Rules (CLAUDE.md, invariants 2 and 3):
 * A use not in `register.USES` is refused with ValueError.
-* No-LLM mode: BIZWAVE_NO_LLM=1, the use listed in BIZWAVE_LLM_DISABLED_USES, or no API key.
-  `ask()` then returns None at once and logs the skip; callers never need to check first.
+* No-LLM mode: BIZWAVE_NO_LLM=1, the use listed in BIZWAVE_LLM_DISABLED_USES, or no API key
+  (all read through `config.settings()`). `ask()` then returns None at once and logs the skip;
+  callers never need to check first.
 * Every call (and every skip) is written to the run log with the prompt version, a hash of the
   prompt text, a hash of the input, the model, timing and token counts.
 * One call per batch. Never call `ask()` in a per-row loop.
@@ -20,7 +21,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,11 +28,11 @@ from typing import Any, Optional, Protocol, Tuple, Type, Union
 
 from pydantic import BaseModel
 
+from ..config import settings
 from ..ops.runlog import RunLog
 from .register import USES, Use
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
-DEFAULT_MODEL = "claude-sonnet-5-5"
 Content = Union[str, list]
 
 
@@ -54,7 +54,9 @@ class AnthropicTransport:
 
     def __init__(self, api_key: Optional[str] = None):
         import anthropic                          # loaded only when Claude is actually called
-        self._client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
+        # With api_key None the SDK reads ANTHROPIC_API_KEY from the environment itself (after
+        # config.settings() has applied .env).
+        self._client = anthropic.Anthropic(api_key=api_key)
 
     def parse(self, *, model, system, content, answer_shape, max_tokens, timeout_seconds) -> Reply:
         response = self._client.with_options(timeout=float(timeout_seconds), max_retries=1).messages.parse(
@@ -77,12 +79,12 @@ def enabled(use: str, transport: Optional[Transport] = None) -> Tuple[bool, Opti
     """(True, None) when `use` may call Claude now, else (False, why not)."""
     if use not in USES:
         raise ValueError(f"Unregistered Claude use '{use}' — add it to llm/register.py first.")
-    if os.environ.get("BIZWAVE_NO_LLM", "0").strip() in ("1", "true", "yes"):
+    s = settings()
+    if s.no_llm:
         return False, "no-LLM mode (BIZWAVE_NO_LLM)"
-    disabled = {u.strip() for u in os.environ.get("BIZWAVE_LLM_DISABLED_USES", "").split(",") if u.strip()}
-    if use in disabled:
+    if use in s.disabled_uses:
         return False, "use disabled (BIZWAVE_LLM_DISABLED_USES)"
-    if transport is None and not os.environ.get("ANTHROPIC_API_KEY"):
+    if transport is None and not s.has_api_key:
         return False, "no ANTHROPIC_API_KEY"
     return True, None
 
@@ -108,7 +110,7 @@ def ask(use: str, *, content: Content, answer_shape: Type[BaseModel], deal_id: O
     spec = USES[use]
     log = runlog or RunLog()
     prompt, prompt_sha = load_prompt(spec)
-    model = model or os.environ.get("BIZWAVE_LLM_MODEL") or DEFAULT_MODEL
+    model = model or settings().llm_model
     base = dict(use=use, deal_id=deal_id, prompt_version=spec.prompt_version, prompt_sha=prompt_sha,
                 model=model, input_sha=_hash(content))
     if not ok:
