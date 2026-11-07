@@ -15,8 +15,6 @@ Review packet $ARGUMENTS independently and correct (CLAUDE.md section 6, steps 7
    `/lessons` (status `[note]` until `/improve` sorts it), citing the review round. Do this before fixing.
 5. **Correct:** fix every blocker and should-fix in the code, one commit per finding
    (`[Day N] P<n> fix: <finding>`); nits at your discretion. Never edit the gate.
-   If a fix changes the data contract, update the plan's contract and `## Spec amendment` in the same
-   commit as the fix.
    If a finding is wrong, do not fix it: write why under the finding in the review file for Chan.
 6. Run `/verify-packet $ARGUMENTS` again, then this command again (round 2). The reviewer re-checks the
    earlier findings.

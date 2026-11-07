@@ -52,7 +52,7 @@ Out: product code; the two P1 master-plan proposals (Chan asked for an explanati
       `close-packet`, `lessons`, `sprint-status`
 - [x] W1.3 Reviewer agent checklist
 - [x] W1.4 Plan template sections
-- [ ] W1.5 `tasks/lessons.md`: status on every lesson; four P1 lessons promoted
+- [x] W1.5 `tasks/lessons.md`: status on every lesson; four P1 lessons promoted
 - [ ] W1.6 Records: P1 confirmation (P1 plan), D12 and D16 made (`docs/decisions.md`)
 
 ## Gate tests (written first)
