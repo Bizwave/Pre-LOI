@@ -210,7 +210,8 @@ so measure it on the first live reviews rather than estimating.
 - **Keep client data outside the repository** (`BIZWAVE_DATA_DIR`). `.claude/settings.json` in the repo
   denies Claude Code reads of `.env`, `deals/` and the default data folder as a second guard. A deny
   rule is a guard, not a wall: Claude Code's shell can still read files, so the folder location is the
-  real protection.
+  real protection. **If you move the data folder or the run log, add a matching `Read(...)` deny rule:
+  the shipped rule covers only the default `~/BizWaveData`.**
 - **Build and debug with synthetic or redacted samples in Claude Code.** Anything Claude Code reads or
   prints goes to the model. Run live client deals yourself, in a normal terminal and the console.
 - **The pipeline itself sends pages to the Claude API by design.** Disclose AI-assisted processing in the
