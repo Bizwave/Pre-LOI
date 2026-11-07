@@ -132,7 +132,7 @@ P2.1 models, P2.2 migration, P2.3 repository layer).
    packet's regression duty: schema shape, happy path, error and edge paths, **real values** (dollars,
    counts, page numbers), behavior of direct consumers of anything changed, and a migration
    upgrade → downgrade → upgrade when a migration ships. Run it; it must fail for the right reason
-   (missing behavior, not a typo). Paste the failure summary into the plan under `## Gate — first run`.
+   (missing behavior, not a typo). Paste each gate test's first-run result (flag any test that passed before the code) into the plan under `## Gate — first run`.
    Commit the gate on its own (`[Day N] P<n> gate`).
 5. **Build** (`/execute P<n>`). Branch `p<n>-<topic>` from `main`. Implement sub-packets in order,
    tick each box the moment it is done, commit per sub-packet (`[Day N] P<n>.<k> short description`).
