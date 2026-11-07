@@ -40,6 +40,14 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
 - [note] A gate test whose first failure is a setup error (the missing CLI) has not shown that it fails
   for its own reason; break the behaviour in a scratch copy and record that run. Repeat of a promoted P1
   lesson. (source: P3 review round 1, nit 20)
+- [note] "One item never stops the batch" covers every exception a per-item step can raise (the
+  repository's `ValueError`, not only `OSError`) and every state the item's earlier record can be in (its
+  stored copy missing, or changed). List those states before writing the handler. (source: P3 review round
+  2, should-fix 1)
+- [note] When a lesson is written, sweep the diff for every other place of the same kind the same day: the
+  both-directions rule went into intake's source check but not into the backup-folder check next to it,
+  and the `==` rule missed a case-sensitive name comparison. (source: P3 review round 2, should-fix 2 and
+  nit 3)
 
 ## P2 database core (2026-11-06, branch `p2-database`)
 
