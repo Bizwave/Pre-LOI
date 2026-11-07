@@ -123,7 +123,21 @@ def test_intake_document_kinds_match_the_database():
     ("Project Falcon CIM.pdf", "cim"), ("2024 P&L.pdf", "p_and_l"), ("Profit_and_Loss.pdf", "p_and_l"),
     ("Balance-Sheet 2024.pdf", "balance_sheet"), ("Add-backs schedule.xlsx", "recast"),
     ("decimal notes.pdf", "other"), ("deck.pdf", "other"),
+    ("Confidential Information Memorandum.pdf", "cim"), ("2024_Recast.xlsx", "recast"),
+    # near misses (P3 review round 1, should-fix 2): an NDA is not a CIM, a forecast is not a recast
+    ("NDA - Confidential Information.pdf", "other"), ("Financial Forecast.pdf", "other"),
 ])
 def test_intake_kinds_from_file_names(name, kind):
     from bizwave_preloi.rules import intake_rules
     assert intake_rules().kind_for(name) == kind
+
+
+@pytest.mark.parametrize("name, skipped", [
+    ("~$notes.xlsx", True), ("~$CIM draft.docx", True), ("Thumbs.db", True), (".hidden", True),
+    ("notes.xlsx", False), ("$ budget.xlsx", False), ("~ approx.pdf", False),
+])
+def test_intake_skips(name, skipped):
+    """Office's lock files ("~$...") are skipped by a rule in intake.yaml, not by code (nit 18)."""
+    from bizwave_preloi.rules import intake_rules
+    assert intake_rules().skips(name) is skipped
+    assert "~$" in intake_rules().skip_prefixes

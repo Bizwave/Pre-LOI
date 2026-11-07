@@ -252,6 +252,7 @@ class IntakeRules(_Strict):
     document_kinds: List[DocumentKindRule] = Field(min_length=1)
     unmatched_kind: DocumentKind
     skip_names: List[str]
+    skip_prefixes: List[str] = Field(default_factory=list)
 
     def kind_for(self, file_name: str) -> str:
         """The kind of a file, from its name (first matching row wins)."""
@@ -262,7 +263,9 @@ class IntakeRules(_Strict):
         return self.unmatched_kind
 
     def skips(self, file_name: str) -> bool:
-        return file_name.startswith(".") or file_name.lower() in {n.lower() for n in self.skip_names}
+        name = file_name.lower()
+        return (name.startswith(".") or name in {n.lower() for n in self.skip_names}
+                or any(name.startswith(prefix.lower()) for prefix in self.skip_prefixes if prefix))
 
 
 def normalize_file_name(file_name: str) -> str:

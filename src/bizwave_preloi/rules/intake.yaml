@@ -17,6 +17,11 @@
 #   unmatched_kind  the kind for a file no pattern matches
 #   skip_names      file names never brought in (compared in lower case); names starting with "."
 #                   are always skipped
+#   skip_prefixes   file-name beginnings never brought in ("~$": the lock file Word and Excel keep
+#                   beside an open document)
+#
+# Each pattern has a near-miss test in tests/test_rules.py (a name it must NOT match): "recast" must not
+# match inside "forecast", and an NDA titled "Confidential Information" is not a CIM.
 status: "draft"
 source: "P3: document kinds from file names; the CPA corrects with bw intake --kind"
 document_kinds:
@@ -25,8 +30,9 @@ document_kinds:
   - kind: "balance_sheet"
     patterns: ['balance sheet']
   - kind: "recast"
-    patterns: ['recast', 'adjusted ebitda', '\bsde\b', 'add ?backs?']
+    patterns: ['\brecast', 'adjusted ebitda', '\bsde\b', 'add ?backs?']
   - kind: "cim"
-    patterns: ['\bcim\b', 'confidential information', 'information memorandum', 'offering memorandum']
+    patterns: ['\bcim\b', 'information memorandum', 'offering memorandum']   # covers "confidential information memorandum"
 unmatched_kind: "other"
 skip_names: ["thumbs.db", "desktop.ini", ".ds_store"]
+skip_prefixes: ["~$"]
