@@ -2,6 +2,30 @@
 
 Newest first. One entry per packet or session, written by `/lessons` (CLAUDE.md section 6, step 9).
 
+## P1 settings and data folder (2026-11-06, branch `p1-settings`)
+
+### For You (Chan)
+- Answering a plan's questions is not the same as signing off the plan. When I revise a plan after your
+  answers, I should stop and you should reply "go ahead" (or tell me answers count as sign-off). P1 skipped
+  that stop; the reviewer caught it.
+- The independent reviewer earned its place on the first packet: it found a real gap the 142 passing tests
+  missed (the run log could still be written inside the repo through `BIZWAVE_RUNLOG`, which the old
+  `.env.example` pointed at), and proved it by deleting the guard and watching every test still pass.
+- If you move the data folder (an encrypted drive, say), add a matching `Read(...)` deny rule in
+  `.claude/settings.json`; the default rule covers only `~/BizWaveData`.
+
+### For Claude Code (Me)
+- After revising a plan in response to Chan's answers, STOP again before writing the gate, even for
+  small revisions. Record the stop.
+- Never write "approved by Chan" in a commit message beyond the exact text Chan approved.
+- A test that passes before the code exists is a warning sign: `test_runlog_defaults_to_data_folder`
+  passed early because the old code read the same variable. Check that each gate test fails first for
+  its own reason, not just that the file fails to import.
+- Tests of a refusal must not be able to write into the real repository if the refusal breaks: point
+  `config.REPO_ROOT` at a fake repository under the test's temp folder.
+- When a review fix changes the contract, update the plan's contract and spec amendment in the same
+  commit as the fix, so the record never lags the code.
+
 ## Day 0 — packet loop added to CLAUDE.md (2026-11-06, branch `day-0/packet-loop`)
 
 ### For You (Chan)
