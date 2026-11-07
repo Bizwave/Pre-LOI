@@ -14,15 +14,19 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   database file paths on Windows.
 - Until P3's backup command exists, copy `BizWaveData` before any manual database command, with nothing
   running.
+- I read your "1a" as allowing the one focused review beyond the two-round limit that option described.
+  It found one more gap (the contract did not say how far the new guard reaches). If you would rather
+  never allow exceptions, say so and I will carry such items to the next packet instead.
 
 ### For Claude Code (Me)
 - [note] Work out every expected value in a gate by running it (`len(...)`), never by hand: the gate's
   340 should have been 330. (source: P2 gate-runner RED during the build)
-- [note] Test database changes the way they will run: migrations over a database holding rows, through
-  a table rebuild; any change to transactions or the connection pool with two sessions at once; and
-  assert the thing claimed (a column only the migration changes). The round-1 fix disabled
-  busy_timeout, and undoing it reopened a lost-update race. (source: P2 review round 1 should-fix 1;
-  round 2 should-fixes 1 and 5; round 3 should-fix 1)
+- [note] Test the way it will run: on the Python version the tech plan names (3.12) as well as the
+  container's 3.13; migrations over a database holding rows, through a table rebuild; any change to
+  transactions or the connection pool with two sessions at once; and assert the thing claimed (a column
+  only the migration changes). The round-1 fix disabled busy_timeout, undoing it reopened a lost-update
+  race, and a CLI fix checked only on 3.13 still failed on 3.12. (source: P2 review round 1 should-fix
+  1; round 2 should-fixes 1, 2 and 5; round 3 should-fix 1)
 - [note] Check inputs in the function that receives them and raise the contract's error type before
   anything is written; match whole strings with `re.fullmatch` (`$` accepts a trailing newline).
   (source: P2 review round 1, should-fixes 4 and 5)
@@ -30,8 +34,10 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   (the newest migration revision). Same kind as W1's "do not pin state the loop changes", now in a
   second packet: a promotion candidate for `/improve`. (source: P2 review round 1 should-fix 8; round 2
   should-fixes 3 and 4)
-- [note] Run the suite on the Python version the tech plan names (3.12) as well as the container's
-  3.13: a CLI fix checked only on 3.13 still failed on 3.12. (source: P2 review round 2, should-fix 2)
+- [note] When a fix changes behaviour, write its whole reach into the contract in the same commit: who
+  else it affects and what state a refusal leaves behind (the deal guard covers every deal update and
+  rolls back the whole session). Repeat of P1's [note] on contract changes from review fixes, now in a
+  second packet: a promotion candidate for `/improve`. (source: P2 focused review, should-fix 1)
 - [note] Look for destructive defaults and shortcut paths in anything touching the live database or the
   deal flow: a bare `downgrade` emptied the live database, and `on_hold` skipped `ready`. (source: P2
   review round 1 should-fix 2; round 3 should-fix 2)
