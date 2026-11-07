@@ -4,6 +4,25 @@ Newest first. One entry per packet or session, written by `/lessons` at close an
 is found (CLAUDE.md section 6, "Self-improvement"). Every "For Claude Code (Me)" line carries a status set
 by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]`.
 
+## W1 self-improvement loop (2026-11-06, branch `w1-lessons-loop`)
+
+### For You (Chan)
+- A "go ahead" on a proposal in chat covers that proposal's words, not a plan written afterwards or
+  CLAUDE.md text you have not seen. Expect to be shown the plan and any CLAUDE.md diff before building.
+- Promoting a lesson to a checklist did not stop me repeating it in the very next packet; the reviewer
+  caught it after the fact. A mechanical check before building (proposed) is the stronger fix.
+
+### For Claude Code (Me)
+- [note] A go-ahead given before a plan exists covers only the proposal text. Write the plan, show Chan
+  the plan and the exact CLAUDE.md diff, and wait; record the go-ahead with date and time in the
+  Reviewer Note before writing the gate. Repeat of promoted lessons (a) and (d).
+  (source: W1 review round 1, should-fix 1)
+- [note] A gate must not pin state the loop is designed to change (exact lesson counts, the exact list of
+  commands). Assert presence and destinations, not totals. (source: W1 review round 1, should-fix 2)
+- [note] `/improve` promotions to tests go in module test files (`tests/test_<module>.py`), never into an
+  existing gate without a spec amendment, and are committed separately. (source: W1 review round 1,
+  should-fix 3)
+
 ## P1 settings and data folder (2026-11-06, branch `p1-settings`)
 
 ### For You (Chan)
@@ -25,7 +44,7 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
 - [promoted → /execute gate first run, packet-reviewer checklist 12] A test that passes before the code
   exists is a warning sign: `test_runlog_defaults_to_data_folder` passed early because the old code read
   the same variable. Check that each gate test fails first for its own reason, not just that the file
-  fails to import. (source: P1 review round 1, blocker)
+  fails to import. (source: P1 build, implementer's observation)
 - [promoted → packet-reviewer checklist 13, CLAUDE.md §8] Tests of a refusal must not be able to write
   into the real repository if the refusal breaks: point `config.REPO_ROOT` at a fake repository under the
   test's temp folder. (source: P1 review round 2, nit)
