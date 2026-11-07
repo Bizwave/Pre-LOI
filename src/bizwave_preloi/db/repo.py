@@ -4,6 +4,13 @@ Session (from session_scope) and leaves committing to it.
     get_or_create_customer   customers are found by e-mail (trimmed, lower case)
     create_deal              deal ids are code names (schemas.Deal pattern); writes the first event
     transition               the status flow (db/status.py); every change is an event
+
+Concurrent changes: every ORM update of a deal matches only while its status is still the one this
+session read (models.Deal). transition() turns a stale write into InvalidTransition; any other deal update
+raises SQLAlchemy's StaleDataError. Either way the session's whole transaction is rolled back, earlier work
+in it included, and the session must be rolled back before reuse (session_scope does). A refusal by the
+flow itself (status.check) leaves the session usable. Keep records that must survive (a pipeline run's
+result) in their own session, committed before the deal is moved.
     add_document             a file already inside the deal folder: hashed, de-duplicated, stored
                              relative to the deal folder so the data folder can move
     record_pages             one row per page from ingest.inventory()
