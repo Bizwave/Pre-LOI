@@ -66,6 +66,7 @@ class Settings:
     disabled_uses: FrozenSet[str]
     llm_model: str
     has_api_key: bool               # presence only: the key itself is never held here
+    backup_dir: Path                # BIZWAVE_BACKUP_DIR; default <data folder>/backups (P3)
 
 
 # --------------------------------------------------------------------------- building settings
@@ -107,6 +108,7 @@ def load_settings(env: Optional[Mapping[str, str]] = None, home: Optional[Path] 
         disabled_uses=disabled,
         llm_model=text("BIZWAVE_LLM_MODEL") or DEFAULT_MODEL,
         has_api_key=bool(text("ANTHROPIC_API_KEY")),
+        backup_dir=_path(text("BIZWAVE_BACKUP_DIR"), home) if text("BIZWAVE_BACKUP_DIR") else data_dir / "backups",
     )
 
 
@@ -185,6 +187,24 @@ def check_database_location(path: Path, warn: bool = True) -> None:
             f"The database {path} is inside a synced folder ('{synced}'). Sync can corrupt an open SQLite "
             f"file and its -wal/-shm companions; keep it outside and back it up into the synced folder "
             f"instead.", UserWarning, stacklevel=3)
+
+
+def check_backup_location(path: Path, s: Optional[Settings] = None) -> None:
+    """Refuse a backup folder inside the repository (it receives client files and the database) or inside
+    the deals folder (it would back itself up); warn when it is inside the data folder (same disk). A synced
+    folder is fine for backups (docs/tech-plan.md section 3). Creates nothing (P3)."""
+    s = s or settings()
+    if REPO_ROOT is not None and _inside(path, REPO_ROOT):
+        raise DataFolderError(
+            f"The backup folder {path} is inside the repository {REPO_ROOT}. Backups hold client files and "
+            f"the database: set BIZWAVE_BACKUP_DIR to a folder outside the repository.")
+    if _inside(path, s.deals_dir):
+        raise DataFolderError(f"The backup folder {path} is inside the deals folder {s.deals_dir}; it would "
+                              f"back itself up. Choose a folder outside it.")
+    if _inside(path, s.data_dir):
+        warnings.warn(
+            f"The backup folder {path} is inside the data folder {s.data_dir}: the same disk as the originals. "
+            f"Point BIZWAVE_BACKUP_DIR at your encrypted backup folder.", UserWarning, stacklevel=2)
 
 
 def ensure_data_dirs(s: Optional[Settings] = None) -> Settings:

@@ -9,6 +9,9 @@ these work from any folder and from an installed copy.
 Schema changes only ever go through a new revision file in migrations/versions/, tested
 upgrade -> downgrade -> upgrade (CLAUDE.md §6 step 4).
 
+Before an upgrade or downgrade of the data folder's (live) database, a snapshot is written with
+ops.backup.backup_database into BIZWAVE_BACKUP_DIR (M11); an upgrade with nothing to apply makes none.
+
 On SQLite a migration runs on a connection of its own, with foreign keys switched off (a batch
 "recreate" drops and rebuilds a parent table while child rows exist) and inside one transaction that
 includes the DDL. Before it commits, PRAGMA foreign_key_check must come back empty; otherwise, or if any
@@ -82,7 +85,25 @@ def _run(command_fn, url: Optional[str], revision: str, *, script_location: str 
                 connection.invalidate()   # changed above: never back to the pool (foreign keys off)
 
 
+def _backup_live_database_first(url: Optional[str], action: str, revision: str) -> None:
+    """Before changing the data folder's (live) database, snapshot it (M11, Chan 2026-11-06). Other
+    databases (tests, scratch copies) are not backed up. An upgrade with nothing to apply makes no
+    snapshot; a database file that does not exist yet has nothing to save."""
+    live = database_file(settings().database_url)
+    target = database_file(url if url is not None else settings().database_url)
+    if live is None or target is None or target != live or not target.exists():
+        return
+    if action == "upgrade":
+        from alembic.script import ScriptDirectory
+        wanted = ScriptDirectory.from_config(_config()).get_current_head() if revision == "head" else revision
+        if current_revision(url) == wanted:
+            return
+    from ..ops.backup import backup_database        # here, not at the top: ops.backup imports the database layer
+    backup_database(url=url, label=f"before-{action}")
+
+
 def upgrade(url: Optional[str] = None, revision: str = "head") -> None:
+    _backup_live_database_first(url, "upgrade", revision)
     _run(command.upgrade, url, revision)
 
 
@@ -93,6 +114,7 @@ def downgrade(url: Optional[str] = None, revision: str = "-1") -> None:
         raise ValueError("downgrade removes tables and their data: name the database explicitly "
                          "(downgrade(url, ...); on the command line, --url sqlite:///...)")
     _require_existing(url)
+    _backup_live_database_first(url, "downgrade", revision)
     _run(command.downgrade, url, revision)
 
 
