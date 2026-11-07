@@ -12,6 +12,7 @@ The CPA makes the judgments and signs.** It runs end to end with Claude switched
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"                               # add ,llm to call Claude
 pytest
+python -m bizwave_preloi.db upgrade                   # create or update the database in the data folder
 ```
 
 Copy `.env.example` to `.env` to set an API key; without one the pipeline runs in no-LLM mode.
@@ -33,6 +34,8 @@ If you move the data folder (or the run log), also add a matching `Read(...)` de
   with LibreOffice and checks every row against the Python.
 - **Rules as data** (`rules/`): 27 add-back rows with lender views, support lists and seller questions;
   flag thresholds; SBA parameters with sources. Drafts until confirmed.
+- **Database** (`db/`): customers, deals and every status change, documents, pages and pipeline runs, in
+  SQLite in the data folder; schema only through Alembic migrations; writes only through `db/repo.py`.
 - **Footing checks** (`validate/`), **add-back classifier** (`classify/`), **Claude door with no-LLM mode
   and run log** (`llm/`), **PDF inventory** (`ingest/`).
 
