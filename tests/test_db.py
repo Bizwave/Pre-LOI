@@ -150,3 +150,153 @@ def test_migration_that_orphans_rows_is_refused(db_url, tmp_path):
         migrate._run(command.upgrade, db_url, "head", script_location=orphaning)
     assert migrate.current_revision(db_url) == "0001_core"
     assert _counts(db_url) == before
+
+
+# --------------------------------------------------------------------------- inputs checked where they enter
+# Review round 1, should-fixes 4, 5 and 7, and the untested paths in nit 12. Each refusal happens before
+# anything is written, with the error type the contract names.
+
+def _customer(s):
+    from bizwave_preloi.db import repo
+    customer = repo.get_or_create_customer(s, name="Pat Buyer", email="pat@example.com")
+    s.flush()
+    return customer
+
+
+def _deal_count(url):
+    from bizwave_preloi.db.session import get_engine
+    with get_engine(url).connect() as conn:
+        return conn.exec_driver_sql("select count(*) from deals").scalar()
+
+
+@pytest.mark.parametrize("field, value, error", [
+    ("list_price_cents", 750.5, TypeError),          # would be stored as REAL
+    ("list_price_cents", True, TypeError),           # would be stored as 1
+    ("asking_price", 2500000.0, TypeError),          # a float is never a figure read from a page
+    ("asking_price", __import__("decimal").Decimal("1" * 41), ValueError),   # longer than the column
+    ("by", "  ", ValueError),
+])
+def test_create_deal_refuses_bad_input_before_writing(db_url, field, value, error):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        kwargs = dict(deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        kwargs[field] = value
+        with pytest.raises(error):
+            repo.create_deal(s, **kwargs)
+        assert not s.new                     # nothing added to the session
+    assert _deal_count(db_url) == 0
+
+
+@pytest.mark.parametrize("deal_id", ["acme-hvac\n", "Acme-hvac", "ab", "-acme"])
+def test_deal_id_must_match_the_whole_pattern(db_url, deal_id):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+    from bizwave_preloi.schemas import Deal
+
+    with session_scope(db_url) as s:
+        with pytest.raises(ValueError, match="Deal id"):
+            repo.create_deal(s, deal_id=deal_id, customer_id=_customer(s).id, tier="flash", by="chan")
+    with pytest.raises(ValueError):
+        Deal(id=deal_id, name="x")           # the schema refuses the same ids
+    assert _deal_count(db_url) == 0
+
+
+def test_transition_refuses_a_naive_time_before_writing(db_url):
+    from datetime import datetime
+
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.models import DealEvent
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+    with session_scope(db_url) as s:
+        with pytest.raises(ValueError, match="timezone-aware"):
+            repo.transition(s, "acme-hvac", "awaiting_documents", by="chan", at=datetime(2026, 11, 6, 9))
+        with pytest.raises(ValueError, match="'by'"):
+            repo.transition(s, "acme-hvac", "awaiting_documents", by="")
+        assert not s.new
+        assert s.get(repo.Deal, "acme-hvac").status == "created"
+        assert s.query(DealEvent).count() == 1
+
+
+def test_direct_path_without_payment_reaches_awaiting_documents(db_url):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        deal = repo.transition(s, "acme-hvac", "awaiting_documents", by="chan")
+        assert deal.status == "awaiting_documents" and deal.package_complete_at is None
+
+
+@pytest.mark.parametrize("env, expected", [
+    ({"ANTHROPIC_API_KEY": "test-key-not-real"}, "on"),
+    ({"ANTHROPIC_API_KEY": "test-key-not-real", "BIZWAVE_LLM_DISABLED_USES": "addbacks.classify_unmatched"}, "on"),
+    ({"ANTHROPIC_API_KEY": "test-key-not-real", "BIZWAVE_NO_LLM": "1"}, "off"),
+    ({}, "off"),
+])
+def test_run_records_whether_claude_was_reachable(db_url, monkeypatch, env, expected):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        assert repo.start_run(s, "acme-hvac").llm_mode == expected
+
+
+def test_run_records_the_code_version(db_url):
+    import shutil
+
+    from bizwave_preloi import config
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    if shutil.which("git") is None or not (config.REPO_ROOT / ".git").exists():
+        pytest.skip("not a git checkout")
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        sha = repo.start_run(s, "acme-hvac").git_sha
+    assert sha is not None and len(sha) == 40 and set(sha) <= set("0123456789abcdef")
+
+
+def test_refusals_for_missing_records(db_url, tmp_path):
+    from bizwave_preloi import config
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        with pytest.raises(ValueError, match="No deal"):
+            repo.add_document(s, "no-such-deal", tmp_path / "x.pdf", kind="cim")
+        with pytest.raises(ValueError, match="No document"):
+            repo.record_pages(s, 999, [])
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        folder = config.settings().deals_dir / "acme-hvac" / "inputs"
+        folder.mkdir(parents=True)
+        with pytest.raises(ValueError, match="not a file"):
+            repo.add_document(s, "acme-hvac", folder, kind="cim")
+        run = repo.start_run(s, "acme-hvac")
+        s.flush()
+        with pytest.raises(ValueError, match="succeeded' or 'failed"):
+            repo.finish_run(s, run.id, status="done", stages={})
+
+
+def test_run_stages_edited_in_place_are_saved(db_url):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.models import PipelineRun
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        run = repo.start_run(s, "acme-hvac")
+        s.flush()
+        run_id = run.id
+    with session_scope(db_url) as s:
+        run = s.get(PipelineRun, run_id)
+        run.stages["inventory"] = {"pages": 2}
+    with session_scope(db_url) as s:
+        assert s.get(PipelineRun, run_id).stages == {"inventory": {"pages": 2}}

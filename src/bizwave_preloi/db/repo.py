@@ -24,16 +24,25 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from .. import config, rules
-from ..llm import enabled as llm_enabled
+from ..schemas import DEAL_ID_PATTERN
 from .models import Customer, Deal, DealEvent, Document, Page, PipelineRun
 from .status import check
-from .types import utcnow
+from .types import check_aware, check_cents, check_decimal, utcnow
 
-DEAL_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,40}$")     # same as schemas.Deal.id
+DEAL_ID = re.compile(DEAL_ID_PATTERN)     # the same pattern as schemas.Deal.id; always use fullmatch
 
+
+# Inputs are checked here, before anything is added to the session, so a bad value raises the error the
+# contract names (TypeError, ValueError) instead of a database error at flush.
 
 def _now(at: Optional[datetime]) -> datetime:
-    return at or utcnow()
+    return utcnow() if at is None else check_aware(at)
+
+
+def _who(by: str) -> str:
+    if not isinstance(by, str) or not by.strip():
+        raise ValueError("'by' must name who made the change (e.g. 'chan')")
+    return by.strip()
 
 
 # --------------------------------------------------------------------------- customers and deals
@@ -54,9 +63,13 @@ def get_or_create_customer(s: Session, *, name: str, email: str, firm: Optional[
 def create_deal(s: Session, *, deal_id: str, customer_id: int, tier: str, by: str,
                 list_price_cents: Optional[int] = None, asking_price: Optional[Decimal] = None,
                 proposed_price: Optional[Decimal] = None, industry: Optional[str] = None) -> Deal:
-    if not DEAL_ID.match(deal_id or ""):
+    if not isinstance(deal_id, str) or not DEAL_ID.fullmatch(deal_id):
         raise ValueError(f"Deal id {deal_id!r} must be 3-41 characters: lower-case letters, digits and "
                          f"hyphens, starting with a letter or digit (e.g. 'acme-hvac').")
+    by = _who(by)
+    check_cents(list_price_cents)
+    check_decimal(asking_price)
+    check_decimal(proposed_price)
     if s.get(Deal, deal_id) is not None:
         raise ValueError(f"Deal {deal_id!r} already exists")
     now = utcnow()
@@ -75,7 +88,7 @@ def transition(s: Session, deal_id: str, to_status: str, *, by: str, detail: Opt
     if deal is None:
         raise ValueError(f"No deal {deal_id!r}")
     check(deal.status, to_status)              # raises InvalidTransition; nothing written
-    when = _now(at)
+    by, when = _who(by), _now(at)
     s.add(DealEvent(deal_id=deal_id, at=when, kind="status_change", from_status=deal.status,
                     to_status=to_status, by=by, detail=detail))
     if to_status == "ready" and deal.package_complete_at is None:
@@ -97,6 +110,7 @@ def add_document(s: Session, deal_id: str, path: Path, *, kind: str,
                  received_at: Optional[datetime] = None) -> Document:
     if s.get(Deal, deal_id) is None:
         raise ValueError(f"No deal {deal_id!r}")
+    received = _now(received_at)
     folder = _deal_folder(deal_id).resolve()
     file = Path(path).resolve()
     try:
@@ -111,7 +125,7 @@ def add_document(s: Session, deal_id: str, path: Path, *, kind: str,
     if existing is not None:
         return existing
     document = Document(deal_id=deal_id, filename=file.name, kind=kind, sha256=digest, size_bytes=len(data),
-                        stored_path=relative.as_posix(), received_at=_now(received_at))
+                        stored_path=relative.as_posix(), received_at=received)
     s.add(document)
     return document
 
@@ -153,9 +167,10 @@ def _git_sha() -> Optional[str]:
 
 
 def _llm_mode() -> str:
-    # Any registered use stands in for "Claude is reachable"; per-use switches still apply at call time.
-    on, _ = llm_enabled("addbacks.classify_unmatched")
-    return "on" if on else "off"
+    """"off" in no-LLM mode or without an API key; otherwise "on". Switches for single uses
+    (BIZWAVE_LLM_DISABLED_USES) still apply when each call is made; they do not make the whole run "off"."""
+    s = config.settings()
+    return "off" if s.no_llm or not s.has_api_key else "on"
 
 
 def start_run(s: Session, deal_id: str) -> PipelineRun:

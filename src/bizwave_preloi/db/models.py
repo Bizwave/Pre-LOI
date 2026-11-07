@@ -11,10 +11,11 @@ from decimal import Decimal
 from typing import Optional
 
 import sqlalchemy as sa
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .status import STATUSES
-from .types import DecimalText, UTCDateTime, utcnow
+from .types import Cents, DecimalText, UTCDateTime, utcnow
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -57,7 +58,7 @@ class Deal(Base):
     customer_id: Mapped[int] = mapped_column(sa.ForeignKey("customers.id"))
     tier: Mapped[str] = mapped_column(_enum("tier", TIERS))
     status: Mapped[str] = mapped_column(_enum("deal_status", STATUSES), default="created")
-    list_price_cents: Mapped[Optional[int]] = mapped_column(sa.Integer)
+    list_price_cents: Mapped[Optional[int]] = mapped_column(Cents)
     asking_price: Mapped[Optional[Decimal]] = mapped_column(DecimalText())
     proposed_price: Mapped[Optional[Decimal]] = mapped_column(DecimalText())
     industry: Mapped[Optional[str]] = mapped_column(sa.String(120))
@@ -109,7 +110,7 @@ class PipelineRun(Base):
     git_sha: Mapped[Optional[str]] = mapped_column(sa.String(40))
     rules_hash: Mapped[str] = mapped_column(sa.String(64))
     llm_mode: Mapped[str] = mapped_column(_enum("llm_mode", LLM_MODES))
-    stages: Mapped[dict] = mapped_column(sa.JSON, default=dict)
+    stages: Mapped[dict] = mapped_column(MutableDict.as_mutable(sa.JSON), default=dict)  # in-place edits saved
     error: Mapped[Optional[str]] = mapped_column(sa.Text)
 
 

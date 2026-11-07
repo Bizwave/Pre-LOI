@@ -168,9 +168,14 @@ class Flag(Model):
 
 # --------------------------------------------------------------------------------- deal
 
+# A deal id is a code name and the deal's folder name under deals/. Shared with db/repo.py, which matches
+# it with re.fullmatch (Python's "$" would also accept a trailing newline).
+DEAL_ID_PATTERN = r"^[a-z0-9][a-z0-9-]{2,40}$"
+
+
 class Deal(Model):
     """One Flash Review engagement. Grows as the sprint adds stages."""
-    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{2,40}$")   # folder name under deals/
+    id: str = Field(pattern=DEAL_ID_PATTERN)   # folder name under deals/
     name: str                                     # internal code name, not the seller's name
     received_at: Optional[datetime] = None        # SLA clock starts when the package is complete
     documents: List[str] = Field(default_factory=list)
