@@ -10,7 +10,10 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
 - A "go ahead" on a proposal in chat covers that proposal's words, not a plan written afterwards or
   CLAUDE.md text you have not seen. Expect to be shown the plan and any CLAUDE.md diff before building.
 - Promoting a lesson to a checklist did not stop me repeating it in the very next packet; the reviewer
-  caught it after the fact. A mechanical check before building (proposed) is the stronger fix.
+  caught it after the fact. The mechanical go-ahead check (`/execute` and `tests/test_workflow.py`) is the
+  stronger fix.
+- A numbered "Yes" confirms the items asked, not the plan as I revise it afterwards. The cleanest sign-off
+  is a literal "go ahead" after I show you the final plan; the check now needs one recorded with its time.
 
 ### For Claude Code (Me)
 - [promoted → tests/test_workflow.py go-ahead check, /execute, plan template] A go-ahead given before a
@@ -22,6 +25,14 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
 - [promoted → /improve steps 2 and 5] `/improve` promotions to tests go in module test files
   (`tests/test_<module>.py`), never into an existing gate without a spec amendment, and are committed
   separately. (source: W1 review round 1, should-fix 3)
+- [note] Every edit to a plan's Scope or Sub-packets gets a Revision log row, including edits that only
+  transcribe Chan's answers; the go-ahead check then forces the stop. Leaving the row out let W1 pass its
+  own check. Repeat of promoted lesson (a). (source: W1 review round 2, should-fix 1)
+- [note] Record the questions exactly as Chan saw them in chat, with times, next to his answers. When a
+  chat question paraphrases a CLAUDE.md line, quote the exact sentence in chat and apply that sentence;
+  b's chat wording differed from the line applied. (source: W1 review round 2, should-fix 2)
+- [note] A mechanical check fails closed: when it cannot find what it reads (a heading, a date), it
+  reports a problem instead of skipping the file. (source: W1 review round 2, should-fix 3)
 
 ## P1 settings and data folder (2026-11-06, branch `p1-settings`)
 

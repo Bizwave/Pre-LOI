@@ -207,3 +207,130 @@ None; this is round 1.
 - Should-fix 3 (`/improve` test route): fixed in `improve.md` and `close-packet.md` (module test files only; separate improve commit; gate-runner verification; no loop back into review).
 - Nits: template placeholder, lesson (b) source, "promote automatically" wording, "run /lessons" wording, reviewer pytest flags, decisions D1–D3 annotations, P1 record lines and timeline, Lessons applied list: fixed. CLAUDE.md:135 wording ("Paste the failure summary") left for Chan's consent. Commit splitting: noted for next time.
 - Master-plan notes: mechanical go-ahead check and the P1 gate exception are proposed to Chan; W packets added to `tasks/sprint.md`.
+
+## Round 2 (packet-reviewer, 6 Nov 2026, HEAD 9d8c482, branch `w1-lessons-loop`)
+
+**Verdict: PASS WITH FIXES.** No blockers. There are three should-fix items and six nits. The round-2 code edits stay inside Chan's lettered answers. What fails is the record of the round: the plan's Revision log, and what Chan was actually asked.
+
+### What I checked
+- **Files read:** CLAUDE.md §3 and §6, the W1 plan, the round-1 review, `git diff main...HEAD` (19 files), the round-2 commits one by one, `tasks/lessons.md`, the P1 plan and gate, and `tests/test_config.py`.
+- **Tests (my own run):** W1 gate plus `tests/test_workflow.py` gave 28 passed (12 + 16). The whole suite gave 186 passed. The working tree is clean. I probed `go_ahead_problems` from a script in the scratchpad with `-B`, so nothing was written into the repository.
+- **Gate edit, 3de3632:** `git log --follow` shows two commits (055b55f, 3de3632).
+  - The edit is limited to the two assertions named in `## Spec amendment`: `EXPECTED_COMMANDS <= found`, and "each of the four named P1 lessons carries a status". Each of the four phrases matches exactly one bullet.
+  - The destination asserts are unchanged.
+  - The amendment was recorded as approved ("c ok", 16:52) in 9bbd463, before the gate changed. This is a legitimate edit.
+- **CLAUDE.md edit, 4c9c1b3:** "Paste the failure summary" became "Paste each gate test's first-run result (flag any test that passed before the code)", word for word as Reviewer Note item 2 / answer b. No other CLAUDE.md line changed in this round. The line was left unwrapped (about 165 characters), which keeps the consented diff minimal. That is acceptable.
+- **Coverage by Chan's answers:**
+  - 3de3632 is covered by c.
+  - 4c9c1b3 is covered by b.
+  - 51ae7f3 (`/execute`, template, `tests/test_workflow.py`) matches the description written under d.
+  - 9d8c482's P1 `## Frozen exception` is covered by e. Its claim checks out: `tests/test_config.py:55-60` and `:93-99` test the same refusal branch (`config.py:171`) against `fake_repo`.
+  - Round-2 commits change no `[note]`/`[promoted]` tags or wording in earlier lessons.md entries. Only the W1 entries changed: tag, plus re-wrapping of the same text.
+- **Commit messages, round 2:** each cites only answers quoted in the Reviewer Note. None claims more than the record.
+- **Invariants:** no product code, prompts, rules or client data touched. `test_workflow.py` only reads files.
+
+### Findings
+
+**[should-fix] `tasks/plans/2026-11-06_w1_lessons_loop.md:104-107` — the Revision log leaves out the round-2 plan revision, and W1 passes its own new check only because of that.**
+- Commit 9bbd463 (17:09:51) revised the plan after Chan's 17:04 answers: Scope `:41-43`, new sub-packets W1.7–W1.10 at `:64-68`, and Status. W1.7 was built 24 seconds later.
+- There is no Revision log row for it. Round-1 should-fix 1 also asked for "a new Revision log row" recording Chan's answer; none was added.
+- Probe: adding the honest row `| 2026-11-06 17:09 | Scope and W1.7–W1.10 added from Chan's answers | … |` makes `go_ahead_problems` return "go-ahead 2026-11-06 17:04 is earlier than the latest revision 2026-11-06 17:09".
+- This is a mild form of promoted lesson (a): the plan was revised after Chan's answers and built without a logged stop. b, c and e approved exact proposals. d approved an idea whose details were written afterwards.
+- **Why it matters:** the first plan to pass the go-ahead check passes because its log is incomplete. That teaches the next packet the wrong habit.
+- **Fix:** add the row. Then either get a one-line go-ahead from Chan on the plan as now written and record a later `Go-ahead:` line, or have Chan rule, in writing in the plan, that a revision which only transcribes his own answers needs no new stop.
+
+**[should-fix] `tasks/plans/2026-11-06_w1_lessons_loop.md:120-139` — the Reviewer Note records Chan's answers but not the questions they answer, so the CLAUDE.md consent and d's details cannot be traced.**
+- "1. Yes … 6. Yes" is the only consent on record for the CLAUDE.md changes: §4, §6 steps 2, 3 and 9, the Self-improvement block, and §8. But items 1–6 are not listed anywhere.
+- The plan's own questions are numbered 1–3. Chan's 16:52 reply uses a–e, and its "a - why fake repo?" shows the chat used a different lettering. The mapping at `:125` ("a, items 1–6: this plan and the CLAUDE.md diff") is the implementer's reconstruction.
+- Under d (`:128-133`), the specifics may not have been shown to Chan, and nothing on record says they were:
+  - the "started" definition;
+  - the template placeholder;
+  - the P1/scaffold exemption.
+  Round-1 master-plan note 1 said only "every plan with status 'building'". `improve.md` step 3 and the Scope rule ask for the exact edit to be shown before edits to `.claude/` and the template.
+- **Why it matters:** CLAUDE.md needs explicit consent to exact text, and lesson (d) — never claim more approval than the record shows — has now repeated in two packets.
+- **Fix:** paste the chat questions verbatim, with times (the a–e list and the 1–6 list), into the Reviewer Note. If d's specifics were not shown to Chan, show him the `execute.md`/template diff and the `test_workflow.py` rule, and record his OK.
+
+**[should-fix] `tests/test_workflow.py:41-44` — the "work started" test depends on two exact headings; with any other heading the check skips the plan silently.**
+- `_started` looks for ticked boxes only under `## Sub-packets`, and for a first run only under `## Gate — first run` (em dash).
+- Proof in the repository: `tasks/plans/2026-11-06_scaffold.md` is fully built, with every `## Tasks` box ticked, yet `_started` returns False.
+- Probes: renaming `## Sub-packets` to `## Tasks`, or writing `## Gate - first run` with a hyphen, both return `[]` for a started plan with no go-ahead. The suite stays green.
+- **Why it matters:** this is the mechanical replacement for a checklist that failed. A vacuous pass is the silent failure W1 exists to stop.
+- **Fix (within d's wording):** count a ticked `- [x]` anywhere in the plan (the template has none), or fail any non-legacy plan that lacks the four headings the check reads. Add synthetic cases for both.
+
+**[nit] `tasks/plans/2026-11-06_w1_lessons_loop.md:64,68` — W1.10 is listed "exactly as Chan approved them (b–e)", but one of its changes is not in b–e.**
+- W1.10 includes "W1 lesson statuses". The promotion at `tasks/lessons.md:22` (to `/improve` steps 2 and 5) is not in b–e.
+- That `improve.md` edit itself dates from round 1, so it is covered by a.
+- **Fix:** label it as bookkeeping of a confirmed edit, or move it out from under that header.
+
+**[nit] `tasks/lessons.md:13` — the line still says "A mechanical check before building (proposed)".** The check is now built. Update the wording.
+
+**[nit] `tests/test_workflow.py:43-44` and `:25-31` — two false REDs (the check fails closed, it does not skip).**
+- A not-started plan whose first-run section says something like "Not run yet." counts as started, so it reports "no Go-ahead" during planning.
+- A `## ` line inside a code fence in the Reviewer Note ends that section early.
+- **Fix:** note in the template or `/plan-packet` that the placeholder stays until the gate runs, or ignore fenced blocks.
+
+**[nit] `tests/test_workflow.py:20` — the LEGACY list.**
+- The scaffold plan is already treated as "not started", so its exemption only hides the finding above. The comment ("older free-text format") fits P1 only.
+- Nothing stops LEGACY from growing. `test_workflow.py` is a module test, so the never-edit-a-gate rule does not protect it.
+- **Fix:** see master-plan note 3.
+
+**[nit] `tests/test_workflow.py:102-121` — two Go-ahead formats have no synthetic case.** There is none for an invalid-date line (`Go-ahead: 2026-13-06 16:30`) or the old format (`Go-ahead: 6 Nov 16:30`). The code rejects both (probed); two more cases would pin that.
+
+**[nit] `tasks/plans/2026-11-06_w1_lessons_loop.md:93-101` — Lessons applied was not updated for round 2.** The W1 lessons now bear on the round: the go-ahead record and not pinning totals (applied by the spec amendment).
+
+### Earlier findings (round 1)
+1. **Should-fix 1** (no stop; CLAUDE.md beyond the proposal; 055b55f's claim): **fixed and accepted by Chan** on the main points.
+   - Chan confirmed the plan and the CLAUDE.md diff at 17:04.
+   - Scope `:36` now reads "steps 2, 3 and 9".
+   - Revision log row 1 is "no".
+   - The Results note on 055b55f is in.
+   - Nothing needed reverting.
+   - Leftovers carried into should-fix 1 and 2 above: no Revision log row for Chan's answers, and the questions not recorded.
+2. **Should-fix 2** (gate pins counts): **fixed.** Spec amendment approved ("c ok") and applied exactly in 3de3632.
+3. **Should-fix 3** (`/improve` could edit a gate): **fixed.** `improve.md:16-18` and `:30-32`; `close-packet.md:15-19`.
+4. **Nit, gate table:** fixed (plan `:70-84`).
+5. **Nit, template placeholder and CLAUDE.md:135:** fixed (`_TEMPLATE.md:55-56`; CLAUDE.md via b).
+6. **Nit, lesson (b) source:** fixed (`lessons.md:47`; back-fill noted in Results).
+7. **Nit, "promote automatically":** fixed (`improve.md:22-23`).
+8. **Nit, "run /lessons" wording:** fixed (`verify-packet.md:14-15`, `review-packet.md:31-32`, `close-packet.md:15-19`).
+9. **Nit, reviewer pytest flags:** fixed (`packet-reviewer.md:20-23`).
+10. **Nit, records outside scope:** fixed (Scope `:40-41`; D1–D3 each carry "(Chan: Tue 10 Nov)").
+11. **Nit, P1 record contradicted itself:** fixed (P1 plan `:3`, `:165-167`; `sprint.md:17`).
+12. **Nit, Lessons applied incomplete:** fixed (`:93-101`).
+13. **Nit, commit splitting:** no fix was needed. Round 2 commits one sub-packet each.
+- **Round-1 master-plan notes:**
+  - Go-ahead check: implemented (d).
+  - P1 gate: frozen exception, accepted by Chan (e).
+  - P1 merged before confirmation: now stated plainly in the P1 plan.
+  - W packets: added to `tasks/sprint.md`.
+
+### Checklist items 11–13
+- **11. Lessons:**
+  - (d) is followed in round-2 commit messages.
+  - (a) is borderline; see should-fix 1.
+  - (b): not applicable to the new module test.
+  - (c): no new refusal tests.
+- **12. Process record:** go-ahead ordering holds only against the incomplete log (should-fix 1). No commit message claims an approval missing from the plan. The first gate run is unchanged from round 1.
+- **13. Refusal tests:** no new ones. The P1 exception is recorded with Chan's "freeze", and its fake-repository coverage claim is true.
+
+### Master-plan notes
+1. **The check proves the record is consistent, not that the go-ahead came before the build.** W1 passes with a go-ahead 35 minutes after its build. Consider timestamping `## Gate — first run` and requiring it to be no earlier than the go-ahead, or comparing against the gate file's first commit (`git log --diff-filter=A`).
+2. **The test cannot tell a go-ahead Chan gave from one Claude wrote.** Consider having Chan type the `Go-ahead:` line himself; the template already says "Chan writes here".
+3. **Guard `tests/test_workflow.py` through the reviewer checklist.** At the next `/improve`, add to item 12: "LEGACY does not grow; the go-ahead check is not loosened".
+4. **Align `/plan-packet` with the date format.** `.claude/commands/plan-packet.md:21,29` does not mention the `YYYY-MM-DD HH:MM` format the test now reads; only the template does.
+5. **Settle what counts as a go-ahead.** CLAUDE.md step 3 says "answers to questions are not sign-off", yet W1's Go-ahead line quotes "1. Yes … 6. Yes". Chan should say whether a "Yes" to "confirm this plan" counts, or reply with a literal "go ahead".
+
+### Implementer's responses (Claude), round 2
+- Should-fix 1 (missing Revision log row): agreed; a repeat of promoted lesson (a). Rows added for 17:09
+  ("no": built at once) and for correction round 2 ("yes"). The 17:04 line is relabelled as a confirmation
+  of the six CLAUDE.md items, not a go-ahead. With no Go-ahead line recorded, `tests/test_workflow.py`
+  reports the W1 plan RED by design until Chan gives one. Lesson captured.
+- Should-fix 2 (questions not recorded): agreed. The chat questions are pasted verbatim with times.
+  Checking them showed two more gaps, both now put to Chan: b's chat wording differs from the line applied
+  in 4c9c1b3, and d's details were never shown. Lesson captured.
+- Should-fix 3 (check skips silently): fixed. A plan missing any of the four headings fails; a ticked box
+  anywhere counts as started; code fences are ignored; synthetic cases added. Lesson captured.
+- Nits: W1.10 label, `lessons.md` "(proposed)" wording, LEGACY comment, invalid-date and old-format
+  Go-ahead cases, fenced blocks, Lessons applied: fixed. "Not run yet." in a first-run section still
+  counts as started (fails closed): left as is.
+- Master-plan notes 1–5: to be put to Chan as proposals at close; not built in this packet.

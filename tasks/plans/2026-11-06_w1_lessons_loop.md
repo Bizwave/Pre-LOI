@@ -1,8 +1,8 @@
 # 2026-11-06 — W1 Self-improvement loop (workflow packet)
 
-Status: **correcting after review round 1** · plan and CLAUDE.md diff confirmed by Chan 2026-11-06 17:04 PT,
-after the build (see Reviewer Note). Chan's "2. Go ahead" (chat, 16:26) approved the proposal below, not
-this plan, which was written afterwards.
+Status: **waiting for Chan** after review round 2 (PASS WITH FIXES): the exact wording of b, the details
+of d as built, and a go-ahead on this plan as it now stands (see Reviewer Note, "Open for Chan now").
+Chan's "2. Go ahead" (chat, 16:26) approved the proposal below, not this plan, which was written afterwards.
 Branch: `w1-lessons-loop` · Gate: `tests/plans/test_2026_11_06_w1_lessons_loop.py` · Budget: 1 hour
 Research step skipped: light packet. Not one of P1–P15: a workflow packet ("W") before P2 so P2 uses it.
 
@@ -61,11 +61,12 @@ Out: product code; the two P1 master-plan proposals (Chan asked for an explanati
 - [x] W1.5 `tasks/lessons.md`: status on every lesson; four P1 lessons promoted
 - [x] W1.6 Records: P1 confirmation (P1 plan), D12 and D16 made (`docs/decisions.md`)
 
-Corrections after review round 1, exactly as Chan approved them (Reviewer Note, b–e):
+Corrections after review round 1 (Reviewer Note, b–e; what is still open for Chan is listed there):
 - [x] W1.7 Gate spec amendment (c)
 - [x] W1.8 CLAUDE.md §6 step 4 line (b)
 - [x] W1.9 Go-ahead check (d): `/execute`, plan template, new `tests/test_workflow.py`
-- [x] W1.10 P1 plan: frozen exception (e); W1 lesson statuses
+- [x] W1.10 P1 plan: frozen exception (e); W1 lesson statuses (bookkeeping, not part of b–e: the tags
+      record where round-1 fixes now live)
 
 ## Gate tests (written first)
 | Test | Asserts |
@@ -99,17 +100,24 @@ mistakes. Rollback: revert the branch.
 - [P1, promoted] Each gate test fails first for its own reason: applied; the one early pass is declared a
   preservation check.
 - [Day 0] Do not shadow built-in command names: applied (`/improve` is not a built-in).
+- [W1, promoted] Record the go-ahead with date and time, after the latest revision: **not applied** in
+  9bbd463, which added sub-packets from Chan's answers without a Revision log row and built at once
+  (review round 2, should-fix 1); applied in correction round 2 (rows added; the Go-ahead line is left
+  for Chan).
+- [W1, note] Do not pin state the loop is meant to change: applied by the gate spec amendment (c).
 
 ## Revision log
 | Date | Change | Stopped for Chan |
 |---|---|---|
 | 2026-11-06 16:28 | Plan written from the approved proposal (committed with the gate, 055b55f) | no (approval given before the plan existed) |
 | 2026-11-06 16:39 | Records corrected after review round 1 (scope, gate table, lessons applied); `/improve` test route and wording fixed; spec amendment proposed (64c53d8) | yes |
+| 2026-11-06 17:09 | Chan's answers recorded; Scope and correction sub-packets W1.7–W1.10 added from them (9bbd463) | no: W1.7 was built 24 seconds later (review round 2, should-fix 1) |
+| 2026-11-06 17:24 | Correction round 2: chat questions recorded verbatim; the 17:04 line relabelled as a confirmation, not a go-ahead; b wording and d details put to Chan; `tests/test_workflow.py` fails closed (review round 2, should-fix 3); Lessons applied; W1.10 label | yes |
 
 Times are Pacific time, taken from the commits.
 
 ## Reviewer Note
-**Was open for Chan (review round 1, should-fix 1 and 2):**
+**Was open for Chan (review round 1, should-fix 1 and 2), as written in this plan:**
 1. Confirm this plan and the exact CLAUDE.md diff on this branch (§4 command list; §6 steps 2, 3 and 9;
    the new "Self-improvement" block; §8 refusal-test line), or name the lines to revert. Only the §8 line
    was named in the approved proposal.
@@ -117,26 +125,69 @@ Times are Pacific time, taken from the commits.
    summary" → "Paste each gate test's first-run result (flag any test that passed before the code)".
 3. Approve the proposed spec amendment below (the W1 gate stops pinning exact counts).
 
+**The questions as Chan saw them in chat (verbatim).** About 16:43 PT:
+> - **a.** Confirm the W1 plan and these `CLAUDE.md` changes, or name the lines to revert. Only the first was in the proposal.
+>   - a section 8 line saying tests of a refusal must use a fake repo
+>   - `/improve` added to the command list
+>   - plan step reads the lessons first
+>   - sign-off step: stop again after every revision, and answers don't count as sign-off
+>   - close step adds `/improve`
+>   - the new "Self-improvement" rules block
+> - **b.** One more `CLAUDE.md` line the review found out of date. "Paste the failure summary" in the tests-first step becomes "paste each new test's first result, and flag any test that passed before the code".
+> - **c.** Let W1's tests stop pinning exact lesson counts and the exact command list. As written, the first time `/improve` re-sorts a lesson, or a later packet adds a command, the suite fails.
+> - **d.** A mechanical check, which is the real fix for my repeat. `/execute` refuses to start unless the plan's Reviewer Note has a "Go-ahead" line with a date and time later than its last revision, and a test checks this too. I recommend yes.
+> - **e.** One older P1 test still uses the real repo folder, which breaks the new rule. Either freeze it as a recorded exception (I recommend this) or amend it.
+
+About 16:53 PT, after Chan's question on a:
+> Please also confirm the rest of (a), the `CLAUDE.md` changes in W1. Only the first was in your approved proposal.
+> 1. The fake-repo line in "things that will bite" (above).
+> 2. `/improve` in the command list.
+> 3. The plan step reads lessons first and lists the ones it applies.
+> 4. The sign-off step: stop again after every revision, and answering questions isn't sign-off.
+> 5. The close step adds `/improve`.
+> 6. A new "Self-improvement" rules block: capture lessons immediately, read them before planning, promote them through `/improve`, and treat repeats as at least should-fix.
+>
+> - **Freeze (my recommendation):** leave it and record it as a known exception. The risk is tiny. It could only leave empty folders in `deals/`, and only if the refusal broke. The newer pretend-repo tests cover the same refusal and would fail loudly first.
+> - **Amend:** approve rewriting that test to use the pretend repo. It's about 10 minutes and cleaner, but it reopens a closed packet's tests.
+
 **Chan's answers (chat), as given:**
 - 2026-11-06 16:52 PT: "W1: a - why fake repo? is this severe?, b ok, c ok, d yes, e please elaborate on this."
 - 2026-11-06 17:04 PT: "1. Yes 2. Yes 3. Yes 4. Yes 5. Yes 6. Yes / w1(e) - freeze"
 
-**What they approve and what follows (corrections, CLAUDE.md §6 step 8):**
-- **a**, items 1–6 "Yes": this plan and the CLAUDE.md diff above (item 1 here). Nothing reverted.
-- **b** "ok": consent to the §6 step 4 text in item 2 here. Applied in its own commit.
-- **c** "ok": the spec amendment below (item 3 here). Applied to the gate in its own commit.
-- **d** "yes": the mechanical go-ahead check proposed after review round 1 (master-plan note 1): `/execute`
-  requires a `Go-ahead: YYYY-MM-DD HH:MM` line in the Reviewer Note that is not earlier than the latest
-  Revision log row; the template carries the date format and a Go-ahead placeholder; a new
-  `tests/test_workflow.py` checks every plan with work started (a ticked sub-packet or a filled first run)
-  for a parseable Revision log and a valid Go-ahead line. The P1 and scaffold plans predate the rule and
-  are exempt.
-- **e** "freeze": the P1 gate's `test_data_folder_inside_repo_refused`, which uses the real `REPO_ROOT`,
-  stays as committed and is recorded as a frozen exception in the P1 plan (review round 1, master-plan
-  note 2).
+**What they settle, and what they do not (Claude's reading, for Chan to correct):**
+- **a**, 1–6 "Yes": the six CLAUDE.md changes as listed. Nothing reverted. The 16:43 question also asked
+  to confirm "the W1 plan"; the 16:53 list covered only the CLAUDE.md changes, so the plan itself has no
+  explicit confirmation on record.
+- **b** "ok": answered the chat wording above. The line applied in 4c9c1b3 uses this plan's wording
+  (item 2 above), which the chat did not show. Same meaning, different words: **open.**
+- **c** "ok": the spec amendment below; applied in 3de3632.
+- **d** "yes": the check as worded in chat. Its details were written afterwards and not shown: **open**
+  (listed below).
+- **e** "freeze": recorded in the P1 plan's `## Frozen exception` (9d8c482).
 
-Go-ahead: 2026-11-06 17:04 PT (chat: "1. Yes … 6. Yes", with "b ok, c ok, d yes" at 16:52). Given after
-the build; it confirms the plan and diff rather than authorising the build in advance.
+Recorded, 2026-11-06 17:04 PT: "1. Yes … 6. Yes", a confirmation of the six CLAUDE.md items, not a
+go-ahead for this plan.
+
+**d as built (51ae7f3, and correction round 2), for Chan's OK:**
+- `/execute` stops unless the Reviewer Note has a line `Go-ahead: YYYY-MM-DD HH:MM PT (<where, Chan's
+  words>)` whose time is not earlier than the latest Revision log row. (The chat said "later than"; the
+  same minute is accepted.) The line is written only after Chan gives the go-ahead, quoting him.
+- The plan template states the `YYYY-MM-DD HH:MM` date format for Revision log rows and carries the
+  Go-ahead placeholder.
+- `tests/test_workflow.py` checks every plan in `tasks/plans/`. A plan missing any of the four headings it
+  reads (Sub-packets, Revision log, Reviewer Note, Gate — first run) fails. Once work has started (a
+  ticked box anywhere in the plan, or a first run recorded), every Revision log row needs a
+  `YYYY-MM-DD HH:MM` date, and the Go-ahead line must be present and not earlier than the latest row.
+  Code fences are ignored.
+- Exempt: the scaffold and P1 plans, written before the rule.
+
+**Open for Chan now:**
+1. b: keep the applied wording ("Paste each gate test's first-run result (flag any test that passed
+   before the code)"), or use the chat wording ("paste each new test's first result, and flag any test
+   that passed before the code")?
+2. d: OK the details as built (above), or name what to change.
+3. A go-ahead on this plan as it now stands. Until it is recorded here, `tests/test_workflow.py` reports
+   this plan RED by design.
 
 ## Gate — first run
 6 Nov, before any change: 11 failed, 1 passed. Each failure is the missing rule or file it tests
