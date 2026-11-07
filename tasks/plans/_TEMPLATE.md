@@ -40,12 +40,16 @@ Decisions: <D-numbers from docs/decisions.md, or none> · Packets: <earlier pack
 - [<packet>] <lesson> → <how this plan applies it>
 
 ## Revision log
+Dates as `YYYY-MM-DD HH:MM`, Pacific time (`tests/test_workflow.py` reads them).
+
 | Date | What changed | Stopped for Chan |
 |---|---|---|
 | YYYY-MM-DD HH:MM | Plan written | yes |
 
 ## Reviewer Note
 <Chan writes here. Claude answers each point below it, adds a Revision log row, and stops again.>
+<When Chan gives the go-ahead after the latest revision, record it on its own line (not before):>
+Go-ahead: YYYY-MM-DD HH:MM PT (<where, Chan's exact words>)
 
 ## Gate — first run
 <per-test first-run result: each test fails for its own reason (the behaviour it checks); mark any test that

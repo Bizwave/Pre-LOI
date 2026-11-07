@@ -6,8 +6,12 @@ disable-model-invocation: true
 
 Execute the signed-off plan for packet $ARGUMENTS (CLAUDE.md section 6, steps 4 and 5).
 
-Before anything: confirm Chan gave an explicit go-ahead AFTER the latest row of the plan's
-`## Revision log`. If not, stop and ask.
+Before anything: the plan's `## Reviewer Note` must hold a line
+`Go-ahead: YYYY-MM-DD HH:MM PT (<where, Chan's exact words>)` recording Chan's explicit go-ahead, and that
+time must not be earlier than the latest row of `## Revision log` (rows dated `YYYY-MM-DD HH:MM`). If the
+line is missing, or the plan was revised after it, stop and ask. Write the line only after Chan has given
+the go-ahead, quoting him; never in advance. `tests/test_workflow.py` checks this for every plan whose
+work has started.
 
 1. **Branch:** from an up-to-date `main`, create `p<n>-<topic>` (or resume it if it exists).
 2. **Gate first** (skip if the gate is already committed):
