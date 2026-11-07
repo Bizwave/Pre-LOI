@@ -18,8 +18,11 @@ Copy `.env.example` to `.env` to set an API key; without one the pipeline runs i
 
 Client files, the run log and the database live in a data folder **outside the repository**, by
 default `C:\Users\<you>\BizWaveData` (`~/BizWaveData` on a Mac); set `BIZWAVE_DATA_DIR` to move it.
-Keep it out of OneDrive or Dropbox: sync can corrupt the open database. Put sample PDFs in its
-`samples` folder and run `python scripts/pdf_inventory.py`.
+Keep it out of OneDrive, Dropbox, Google Drive or iCloud: sync can corrupt the open database. Put
+sample PDFs in its `samples` folder and run `python scripts/pdf_inventory.py`.
+
+If you move the data folder (or the run log), also add a matching `Read(...)` deny rule to
+`.claude/settings.json`: the rule there only covers the default `~/BizWaveData`.
 
 ## What is here
 
