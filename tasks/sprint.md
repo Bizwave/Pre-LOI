@@ -15,7 +15,7 @@ plan in `tasks/plans/` before it is built. Items marked "(scaffold)" were done o
 ## Day 1 — Mon 9 Nov
 - [ ] Merge the scaffold pull request; set up the environment; `pytest` green on your machine
 - [x] P1 Settings and data folder (`config.py`, `BIZWAVE_DATA_DIR` outside the repo, run log moved) — merged 6 Nov (PR #3); confirmed 16:26
-- [ ] W1 Self-improvement loop (workflow packet) — plan, CLAUDE.md diff and gate amendment confirmed by Chan (17:04); corrections, then review round 2
+- [x] W1 Self-improvement loop (workflow packet) — closed 2026-11-06 (go-ahead 17:29; review round 3 PASS WITH FIXES); merge after Chan consents to the exact CLAUDE.md text
 - [ ] P2 Database core (customers, deals, deal_events, documents, pages, pipeline_runs; Alembic; `DecimalText`)
 - [ ] P3 CLI skeleton (`bw new-deal`, `bw intake`, `bw status`, `bw backup`)
 - [ ] 8–10 sample CIMs (redacted or public where possible); run `scripts/pdf_inventory.py`

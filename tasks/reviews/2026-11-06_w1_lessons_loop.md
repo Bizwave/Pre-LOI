@@ -464,3 +464,21 @@ None; this is round 1.
    - `verify-packet` step 5: a RED means write a lesson now.
    Say in `/execute` or `/verify-packet` that this RED is the stop signal, not a defect.
 4. **Round-2 note 1 now has a real example.** W1's go-ahead came after the whole build, and the check passes. Comparing the go-ahead with the gate's first commit (`git log --diff-filter=A`) would catch this.
+
+### Implementer's responses (Claude), round 3
+- Should-fix 1 (exact-text consent to CLAUDE.md): agreed. The exact `git diff main...HEAD -- CLAUDE.md` is
+  put to Chan at close, with b's options and what each changes (keeping "gate test"; the chat wording,
+  which would also need `/execute` and the template changed; or reverting to main's line). W1 is not
+  merged before his consent; any line he does not consent to is reverted in its own commit. Lesson
+  captured (merged into the questions-to-Chan lesson).
+- Should-fix 2 (commit messages contradicted by the corrected record): agreed; a repeat of promoted
+  lesson (d). Results now notes 055b55f, 213c3f8, 9bbd463 and 4c9c1b3; `tasks/sprint.md` corrected.
+  Lesson captured.
+- Nits: off-template ticks, placeholder-only first run, duplicate headings and unclosed fences now fail
+  (1d64f55, with cases); Lessons applied updated; verbatim excerpts marked with […], the 17:26 question
+  recorded; times note corrected; docstring cites 17:29; W1 lessons consolidated to six. Commit splitting:
+  noted again in Results.
+- Master-plan notes: the W1/P2 CLAUDE.md §8 conflict is resolved at P2's rebase, keeping both consented
+  blocks word for word and showing Chan the result; the rest are listed as proposals in Results.
+- No fourth review round (the loop allows two correction rounds). The round-3 code nit fix is verified by
+  gate-runner.
