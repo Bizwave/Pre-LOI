@@ -12,6 +12,11 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   its clock. Fixed in round 1. Nothing undoes a mistaken intake yet; I will ask you about a `--dry-run`.
 - `BIZWAVE_BACKUP_DIR` will hold a copy of every client file. It needs the same protection as
   BizWaveData: encrypted storage, and a Claude Code deny rule (your OK needed; asked at close).
+- Each review round found real problems, and round 3 found one my own round-2 fix had introduced. A fix is
+  new code and gets the same scrutiny. The focused round you allowed (22:17) closed it; three small points
+  go to P4.
+- Your Windows run on `main` (286 passed, 5 skipped) was the first run of the database code on Windows, and
+  it passed. After merging P3, run `pip install -e .` again so `bw` exists.
 
 ### For Claude Code (Me)
 - [note] Location refusals work in both directions and through links: refuse a folder that *contains* a
