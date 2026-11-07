@@ -53,7 +53,7 @@ Out: product code; the two P1 master-plan proposals (Chan asked for an explanati
 - [x] W1.3 Reviewer agent checklist
 - [x] W1.4 Plan template sections
 - [x] W1.5 `tasks/lessons.md`: status on every lesson; four P1 lessons promoted
-- [ ] W1.6 Records: P1 confirmation (P1 plan), D12 and D16 made (`docs/decisions.md`)
+- [x] W1.6 Records: P1 confirmation (P1 plan), D12 and D16 made (`docs/decisions.md`)
 
 ## Gate tests (written first)
 | Test | Asserts |
