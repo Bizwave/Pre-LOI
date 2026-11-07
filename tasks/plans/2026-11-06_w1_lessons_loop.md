@@ -1,8 +1,8 @@
 # 2026-11-06 — W1 Self-improvement loop (workflow packet)
 
-Status: **built, reviewed (PASS WITH FIXES) · waiting for Chan** to confirm this plan and the exact CLAUDE.md
-diff (see Reviewer Note). Chan's "2. Go ahead" (chat, 6 Nov 16:26) approved the proposal below, not this
-plan, which was written afterwards.
+Status: **correcting after review round 1** · plan and CLAUDE.md diff confirmed by Chan 2026-11-06 17:04 PT,
+after the build (see Reviewer Note). Chan's "2. Go ahead" (chat, 16:26) approved the proposal below, not
+this plan, which was written afterwards.
 Branch: `w1-lessons-loop` · Gate: `tests/plans/test_2026_11_06_w1_lessons_loop.py` · Budget: 1 hour
 Research step skipped: light packet. Not one of P1–P15: a workflow packet ("W") before P2 so P2 uses it.
 
@@ -38,7 +38,9 @@ line); `.claude/commands/`
 (`improve.md` new; `plan-packet`, `execute`, `verify-packet`, `review-packet`, `close-packet`, `lessons`,
 `sprint-status` updated); `.claude/agents/packet-reviewer.md`; `tasks/plans/_TEMPLATE.md`;
 `tasks/lessons.md` (statuses); records: P1 confirmation, decisions D12 and D16 (also added after review:
-D1–D3 dates, decisions M7 and M8, W1 in `tasks/sprint.md`).
+D1–D3 dates, decisions M7 and M8, W1 in `tasks/sprint.md`). Corrections approved after review round 1
+(Reviewer Note b–e): CLAUDE.md §6 step 4 (one line); the gate (spec amendment); `/execute` and the
+template (Go-ahead line); new `tests/test_workflow.py`; the P1 plan (frozen exception).
 Out: product code; the two P1 master-plan proposals (Chan asked for an explanation first).
 
 ## Data contract
@@ -59,15 +61,21 @@ Out: product code; the two P1 master-plan proposals (Chan asked for an explanati
 - [x] W1.5 `tasks/lessons.md`: status on every lesson; four P1 lessons promoted
 - [x] W1.6 Records: P1 confirmation (P1 plan), D12 and D16 made (`docs/decisions.md`)
 
+Corrections after review round 1, exactly as Chan approved them (Reviewer Note, b–e):
+- [ ] W1.7 Gate spec amendment (c)
+- [ ] W1.8 CLAUDE.md §6 step 4 line (b)
+- [ ] W1.9 Go-ahead check (d): `/execute`, plan template, new `tests/test_workflow.py`
+- [ ] W1.10 P1 plan: frozen exception (e); W1 lesson statuses
+
 ## Gate tests (written first)
 | Test | Asserts |
 |---|---|
-| `test_every_command_has_frontmatter_and_improve_exists` | 9 command files incl. `improve.md`, each with a description and `disable-model-invocation: true` |
+| `test_every_command_has_frontmatter_and_improve_exists` | the 9 command files incl. `improve.md` exist (more are allowed, after the spec amendment), each with a description and `disable-model-invocation: true` |
 | `test_review_agents_cannot_edit` | `gate-runner` and `packet-reviewer` tools contain no Edit or Write |
 | `test_claude_md_self_improvement_rules` | §6 has the capture, read and promote rules naming `tasks/lessons.md` and `/improve`; §4 lists `/improve`; §8 has the refusal-test line |
 | `test_template_has_lessons_and_revision_log` | `## Lessons applied` and `## Revision log` in `_TEMPLATE.md` |
 | `test_every_claude_lesson_has_a_status` | every bullet under "For Claude Code (Me)" starts with `[note]`, `[promoted → …]` or `[retired]` |
-| `test_p1_lessons_promoted_where_promised` | four P1 lessons promoted, one note; destinations hold the rule: "stop again" in `/plan-packet` (already true on main), per-test first run in `/execute`, real-repository and commit-message checks in the reviewer, refusal line in CLAUDE.md §8 |
+| `test_p1_lessons_promoted_where_promised` | each of the four named P1 lessons carries a status (exact counts until the spec amendment); destinations hold the rule: "stop again" in `/plan-packet` (already true on main), per-test first run in `/execute`, real-repository and commit-message checks in the reviewer, refusal line in CLAUDE.md §8 |
 | `test_reviewer_checks_lessons_and_commit_claims` | reviewer prompt names `tasks/lessons.md`, "Lessons applied", repeat = should-fix |
 | `test_plan_packet_reads_lessons_and_stops_again` | `/plan-packet` reads lessons, fills "Lessons applied" and "Revision log", stops again after any revision |
 | `test_execute_records_each_gate_test_failing_first` | `/execute` requires each gate test's first-run result and flags a test that passes before the code |
@@ -95,18 +103,40 @@ mistakes. Rollback: revert the branch.
 ## Revision log
 | Date | Change | Stopped for Chan |
 |---|---|---|
-| 6 Nov 16:26 | Plan written from the approved proposal | no (approval given before the plan existed) |
-| 6 Nov (after review round 1) | Records corrected (scope, gate table, lessons applied); `/improve` test route and wording fixed; spec amendment proposed | yes: waiting for Chan |
+| 2026-11-06 16:28 | Plan written from the approved proposal (committed with the gate, 055b55f) | no (approval given before the plan existed) |
+| 2026-11-06 16:39 | Records corrected after review round 1 (scope, gate table, lessons applied); `/improve` test route and wording fixed; spec amendment proposed (64c53d8) | yes |
+
+Times are Pacific time, taken from the commits.
 
 ## Reviewer Note
-**Open for Chan (review round 1, should-fix 1 and 2):**
+**Was open for Chan (review round 1, should-fix 1 and 2):**
 1. Confirm this plan and the exact CLAUDE.md diff on this branch (§4 command list; §6 steps 2, 3 and 9;
    the new "Self-improvement" block; §8 refusal-test line), or name the lines to revert. Only the §8 line
    was named in the approved proposal.
 2. Also consent (or not) to one more CLAUDE.md line the review found stale: §6 step 4 "Paste the failure
    summary" → "Paste each gate test's first-run result (flag any test that passed before the code)".
 3. Approve the proposed spec amendment below (the W1 gate stops pinning exact counts).
-Record: Chan's go-ahead for W1 not yet given for the plan itself.
+
+**Chan's answers (chat), as given:**
+- 2026-11-06 16:52 PT: "W1: a - why fake repo? is this severe?, b ok, c ok, d yes, e please elaborate on this."
+- 2026-11-06 17:04 PT: "1. Yes 2. Yes 3. Yes 4. Yes 5. Yes 6. Yes / w1(e) - freeze"
+
+**What they approve and what follows (corrections, CLAUDE.md §6 step 8):**
+- **a**, items 1–6 "Yes": this plan and the CLAUDE.md diff above (item 1 here). Nothing reverted.
+- **b** "ok": consent to the §6 step 4 text in item 2 here. Applied in its own commit.
+- **c** "ok": the spec amendment below (item 3 here). Applied to the gate in its own commit.
+- **d** "yes": the mechanical go-ahead check proposed after review round 1 (master-plan note 1): `/execute`
+  requires a `Go-ahead: YYYY-MM-DD HH:MM` line in the Reviewer Note that is not earlier than the latest
+  Revision log row; the template carries the date format and a Go-ahead placeholder; a new
+  `tests/test_workflow.py` checks every plan with work started (a ticked sub-packet or a filled first run)
+  for a parseable Revision log and a valid Go-ahead line. The P1 and scaffold plans predate the rule and
+  are exempt.
+- **e** "freeze": the P1 gate's `test_data_folder_inside_repo_refused`, which uses the real `REPO_ROOT`,
+  stays as committed and is recorded as a frozen exception in the P1 plan (review round 1, master-plan
+  note 2).
+
+Go-ahead: 2026-11-06 17:04 PT (chat: "1. Yes … 6. Yes", with "b ok, c ok, d yes" at 16:52). Given after
+the build; it confirms the plan and diff rather than authorising the build in advance.
 
 ## Gate — first run
 6 Nov, before any change: 11 failed, 1 passed. Each failure is the missing rule or file it tests
@@ -117,7 +147,8 @@ Passed before the change, on purpose: `test_review_agents_cannot_edit` is a pres
 independent agents must stay read-only through this packet), not new behaviour.
 
 ## Spec amendment
-**Proposed after review round 1; awaiting Chan's OK. The gate is not changed until then.**
+**Proposed after review round 1 (2026-11-06 16:39); approved by Chan 2026-11-06 16:52 PT (chat, "c ok").**
+Applied to the gate in its own commit; no other line of the gate changes.
 - `test_p1_lessons_promoted_where_promised`: replace the exact counts (4 promoted, 1 note) with: each of
   the four named P1 lessons carries a status, and each destination contains its rule. Why: `/improve`
   exists to change statuses; exact counts would turn the suite RED on every legitimate re-sort.
