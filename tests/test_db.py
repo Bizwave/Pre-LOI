@@ -1,4 +1,6 @@
 """Shared database fixture (P2.5): later packets' tests get a migrated temporary database from `db_url`."""
+import re
+
 import pytest
 
 from bizwave_preloi.db.migrate import current_revision
@@ -890,3 +892,51 @@ def test_alembic_called_directly_is_refused_and_the_live_database_kept():
     with pytest.raises(RuntimeError, match="bizwave_preloi.db.migrate"):
         command.downgrade(migrate._config(), "base")
     assert _live_deals() == 1
+
+
+# --------------------------------------------------------------------------- P3 repository additions
+
+def test_set_document_kind_checks_on_entry(db_url):
+    from bizwave_preloi import config
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    folder = config.settings().deals_dir / "acme-hvac"
+    folder.mkdir(parents=True)
+    (folder / "deck.pdf").write_bytes(b"%PDF-1.4 synthetic\n")
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        doc = repo.add_document(s, "acme-hvac", folder / "deck.pdf", kind="other")
+        s.flush()
+        assert repo.set_document_kind(s, doc.id, "cim").kind == "cim"
+        with pytest.raises(ValueError, match="Document kind must be one of"):
+            repo.set_document_kind(s, doc.id, "teaser")
+        with pytest.raises(ValueError, match="No document"):
+            repo.set_document_kind(s, 999, "cim")
+
+
+def test_suggested_codes_are_free_and_valid(db_url, monkeypatch):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+    from bizwave_preloi.schemas import DEAL_ID_PATTERN, WINDOWS_RESERVED
+
+    monkeypatch.setattr(repo, "_ADJECTIVES", ("amber",))
+    monkeypatch.setattr(repo, "_NOUNS", ("falcon",))
+    with session_scope(db_url) as s:
+        customer_id = _customer(s).id
+        for expected in ("amber-falcon", "amber-falcon-2", "amber-falcon-3"):
+            code = repo.suggest_deal_id(s)
+            assert code == expected and re.fullmatch(DEAL_ID_PATTERN, code) and code not in WINDOWS_RESERVED
+            repo.create_deal(s, deal_id=code, customer_id=customer_id, tier="flash", by="chan")
+            s.flush()
+
+
+def test_closed_statuses_have_one_source():
+    """status.CLOSED (no way out) is what open_deals and intake both use (P3 review round 1, nit 22)."""
+    from bizwave_preloi.db import status
+    assert status.CLOSED == ("delivered", "cancelled")
+
+
+def test_head_revision_is_what_upgrade_reaches(db_url):
+    from bizwave_preloi.db import migrate
+    assert migrate.current_revision(db_url) == migrate.head_revision()

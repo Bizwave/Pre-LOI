@@ -22,8 +22,32 @@ default `C:\Users\<you>\BizWaveData` (`~/BizWaveData` on a Mac); set `BIZWAVE_DA
 Keep it out of OneDrive, Dropbox, Google Drive or iCloud: sync can corrupt the open database. Put
 sample PDFs in its `samples` folder and run `python scripts/pdf_inventory.py`.
 
-If you move the data folder, the run log or the database (`BIZWAVE_DATABASE_URL`), also add a matching
-`Read(...)` deny rule to `.claude/settings.json`: the rule there only covers the default `~/BizWaveData`.
+If you move the data folder, the run log or the database (`BIZWAVE_DATABASE_URL`), or set
+`BIZWAVE_BACKUP_DIR` (it holds a copy of every client file and database snapshots), also add a matching
+`Read(...)` deny rule to `.claude/settings.json`: the rule there only covers the default `~/BizWaveData`,
+which includes the default backup folder.
+
+## Running deals (`bw`)
+
+```bash
+bw new-deal --customer pat@example.com --name "Pat Buyer" --tier flash   # prints the code name, e.g. amber-falcon
+bw paid amber-falcon                                  # payment received (by hand until Stripe); add --pilot to new-deal to skip
+bw intake amber-falcon --from "C:\Users\<you>\OneDrive\Requests\amber"   # copy, hash, classify, record the files
+bw intake amber-falcon --from <same folder> --kind "deck.pdf=cim"             # correct a file's kind
+bw status                                             # open deals and hours since the package was complete
+bw backup                                             # database snapshot + deal files into BIZWAVE_BACKUP_DIR
+```
+
+Intake never overwrites a file: a different file under a name already taken is saved as `-v2`, `-v3`.
+Give `--from` the folder holding only this buyer's files: a folder that contains the data folder, the
+backup folder, the database or the repository is refused. A file that cannot be read (say, a OneDrive file
+not downloaded yet) is reported and the rest are taken in; run intake again once it is available.
+The 24-hour clock starts when a paid (or pilot) deal has a CIM whose pages could be read. Set
+`BIZWAVE_BACKUP_DIR` to your encrypted backup folder (a synced folder is fine for backups); upgrading or
+undoing the live database also writes a snapshot there first. A backup never replaces or deletes
+anything: a deal file that changed since its last copy is kept as a second, dated copy and reported
+(deal files are not meant to change, so check it). After pulling P3, run `pip install -e .` again so the
+`bw` command exists.
 
 ## What is here
 

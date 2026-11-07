@@ -15,7 +15,11 @@ dependencies = [
     "python-dotenv>=1.0",
     "sqlalchemy>=2.0,<2.2",
     "alembic>=1.13",
+    "typer>=0.28",          # the version tested; older releases showed local variables in tracebacks
 ]
+
+[project.scripts]
+bw = "bizwave_preloi.cli:app"     # the operator's command line (P3)
 
 [project.optional-dependencies]
 # Claude is used in four registered places only (see src/bizwave_preloi/llm/register.py).

@@ -1,0 +1,40 @@
+# Intake rules: how `bw intake` names the kind of each file a buyer sends. CODE applies this table
+# (ops/intake.py); the CPA corrects any kind with `bw intake DEAL --from FOLDER --kind "NAME=KIND"`.
+#
+# STATUS: DRAFT (P3, 2026-11-06). Adjust the patterns after the first sample folders; a kind only
+# steers which file later stages read first, and the CPA can always change it.
+#
+# Matching: the file name is normalized first (lower case; "&" -> " and "; "_", "-" and "." -> space;
+# spaces squeezed), so "2024 P&L.pdf" becomes "2024 p and l pdf". Patterns are Python regular
+# expressions searched in that text. Kinds are tried IN FILE ORDER and the first match wins.
+# A file that matches nothing gets `unmatched_kind`.
+#
+# Fields
+#   status          draft | confirmed
+#   source          where these patterns come from
+#   document_kinds  kind (one of the documents.kind values: cim, recast, p_and_l, balance_sheet,
+#                   other) and its patterns
+#   unmatched_kind  the kind for a file no pattern matches
+#   skip_names      file names never brought in (compared in lower case); names starting with "."
+#                   are always skipped
+#   skip_prefixes   file-name beginnings never brought in ("~$": the lock file Word and Excel keep
+#                   beside an open document)
+#
+# Near-miss tests in tests/test_rules.py cover the patterns that once matched the wrong files: "recast" must
+# not match inside "forecast", and an NDA titled "Confidential Information" is not a CIM. Give every new or
+# changed pattern a name it must NOT match, too. Not handled yet: projections ("Forecast P&L", "Projected
+# Income Statement", "Budget") still get a statement kind; a draft exclusion row is a question for Chan.
+status: "draft"
+source: "P3: document kinds from file names; the CPA corrects with bw intake --kind"
+document_kinds:
+  - kind: "p_and_l"
+    patterns: ['\bp ?and ?l\b', '\bpnl\b', 'profit and loss', 'income statement']
+  - kind: "balance_sheet"
+    patterns: ['balance sheet']
+  - kind: "recast"
+    patterns: ['\brecast', 'adjusted ebitda', '\bsde\b', 'add ?backs?']
+  - kind: "cim"
+    patterns: ['\bcim\b', 'information memorandum', 'offering memorandum']   # covers "confidential information memorandum"
+unmatched_kind: "other"
+skip_names: ["thumbs.db", "desktop.ini", ".ds_store"]
+skip_prefixes: ["~$"]

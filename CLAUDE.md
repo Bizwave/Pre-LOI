@@ -70,6 +70,9 @@ pytest -m "not excel"              # skip the LibreOffice parity test
 python scripts/build_financeability_model.py   # rewrite models/financeability_model.xlsx
 python scripts/pdf_inventory.py   # which sample pages have a text layer (<data folder>/samples)
 python -m bizwave_preloi.db upgrade    # create or update the database (in the data folder)
+bw new-deal --customer EMAIL --name NAME --tier flash   # opens a deal; prints its code name
+bw intake DEAL --from FOLDER       # copies, hashes, classifies and records the buyer's files
+bw status                          # open deals; bw backup: database snapshot plus deal files
 ```
 
 Slash commands for the packet loop (section 6), in `.claude/commands/`:

@@ -17,7 +17,7 @@ plan in `tasks/plans/` before it is built. Items marked "(scaffold)" were done o
 - [x] P1 Settings and data folder (`config.py`, `BIZWAVE_DATA_DIR` outside the repo, run log moved) — merged 6 Nov (PR #3); confirmed 16:26
 - [x] W1 Self-improvement loop (workflow packet) — closed 2026-11-06 (go-ahead 17:29; review round 3 PASS WITH FIXES); CLAUDE.md text consented 17:59; merged (PR #4)
 - [x] P2 Database core (customers, deals, deal_events, documents, pages, pipeline_runs; Alembic; `DecimalText`) — closed 2026-11-06; four reviews; ready to merge
-- [ ] P3 CLI skeleton (`bw new-deal`, `bw intake`, `bw status`, `bw backup`; backup before every database upgrade or downgrade, M11)
+- [x] P3 CLI skeleton (`bw new-deal`, `bw paid`, `bw intake`, `bw status`, `bw backup`; backup before a real database upgrade and every downgrade, M11/M13) — closed 2026-11-06; three review rounds plus one focused round (M13); ready to merge
 - [ ] 8–10 sample CIMs (redacted or public where possible); run `scripts/pdf_inventory.py`
 - [ ] Design-partner outreach sent; engagement letter adapted (consulting, buyer-only reliance, AI disclosure)
 
@@ -26,7 +26,7 @@ plan in `tasks/plans/` before it is built. Items marked "(scaffold)" were done o
 - [ ] D2 headline earnings basis
 - [ ] D3 lender view on each add-back row; set `status: confirmed`
 - [ ] Hand-key 3 samples as ground truth (`truth.yaml`: periods, lines, add-backs, pages)
-- [ ] P4 Financeability persisted (`financeability_runs`, `bw finance`)
+- [ ] P4 Financeability persisted (`financeability_runs`, `bw finance`; intake answers and AI consent, M12; `bw intake --dry-run`, projections rule, P3 carried nits, M13)
 - [ ] Open `models/financeability_model.xlsx` in Excel and check it against one of your own deal models
 
 ## Day 3 — Wed 11 Nov

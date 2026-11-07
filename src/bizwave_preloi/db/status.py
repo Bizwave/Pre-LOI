@@ -32,6 +32,9 @@ ALLOWED: Dict[str, FrozenSet[str]] = {
 if set(ALLOWED) != set(STATUSES):        # an explicit check: `assert` is skipped under python -O
     raise RuntimeError("status.ALLOWED must list every status in STATUSES")
 
+# Closed: no way out (delivered, cancelled). The single source for "open deals" and for refusing intake.
+CLOSED = tuple(status for status in STATUSES if not ALLOWED[status])
+
 
 class InvalidTransition(ValueError):
     """A status change the flow does not allow (nothing is written)."""
