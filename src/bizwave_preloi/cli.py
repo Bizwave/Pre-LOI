@@ -21,7 +21,7 @@ import sqlalchemy as sa
 import typer
 
 app = typer.Typer(help="BizWave Flash Review: the operator's commands.", no_args_is_help=True,
-                  add_completion=False)
+                  add_completion=False, pretty_exceptions_show_locals=False)   # locals can hold client data
 
 
 def _fail(message: str) -> NoReturn:
@@ -37,16 +37,14 @@ def _who(by: Optional[str]) -> str:
 
 
 def _require_database() -> None:
-    """The data folder's database must exist and be at the newest revision."""
-    from alembic.script import ScriptDirectory
-
+    """The data folder's database must exist and be at the newest revision. Call it inside the command's
+    `try`, so a refused location (ValueError) is one line, not a traceback."""
     from .db import migrate
     try:
         current = migrate.current_revision()
     except FileNotFoundError:
         current = None
-    head = ScriptDirectory.from_config(migrate._config()).get_current_head()
-    if current != head:
+    if current != migrate.head_revision():
         _fail("The database is not ready (missing or not up to date). Run: python -m bizwave_preloi.db upgrade")
 
 
@@ -64,9 +62,9 @@ def new_deal(
     from .db import repo
     from .db.session import session_scope
 
-    _require_database()
     who = _who(by)
     try:
+        _require_database()
         with session_scope() as s:
             buyer = repo.get_or_create_customer(s, name=name, email=customer, firm=firm)
             s.flush()
@@ -75,7 +73,7 @@ def new_deal(
             next_status = "awaiting_documents" if pilot else "awaiting_payment"
             repo.transition(s, deal_id, next_status, by=who, detail="pilot: no payment" if pilot else None)
             email = buyer.email
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
         _fail(str(exc))
     typer.echo(f"Deal opened for {email}: {next_status.replace('_', ' ')}.")
     typer.echo(deal_id)
@@ -91,13 +89,13 @@ def paid(
     from .db.session import session_scope
     from .ops.intake import start_clock_if_complete
 
-    _require_database()
     who = _who(by)
     try:
+        _require_database()
         with session_scope() as s:
             repo.transition(s, deal, "awaiting_documents", by=who, detail="payment recorded by hand (bw paid)")
             _, message = start_clock_if_complete(s, deal, by=who)
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
         _fail(str(exc))
     typer.echo(f"Payment recorded for {deal}. {message}")
 
@@ -106,8 +104,9 @@ def _parse_kinds(items: List[str]) -> Dict[str, str]:
     kinds = {}
     for item in items:
         name, sep, kind = item.rpartition("=")
-        if not sep or not name or not kind:
-            _fail(f'--kind {item!r}: write it as "NAME=KIND", e.g. "deck.pdf=cim"')
+        if not sep or not name or not kind:            # a usage error: exit 2, like any malformed option
+            raise typer.BadParameter(f'{item!r}: write it as "NAME=KIND", e.g. "deck.pdf=cim"',
+                                     param_hint="--kind")
         kinds[name] = kind
     return kinds
 
@@ -123,15 +122,16 @@ def intake(
     them; start the SLA clock when the package is complete."""
     from .ops.intake import intake as run_intake
 
-    _require_database()
     kinds = _parse_kinds(kind)
     try:
+        _require_database()
         result = run_intake(deal, source, by=_who(by), kinds=kinds)
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
         _fail(str(exc))
     for f in result.files:
         pages = "-" if f.pages is None else str(f.pages)
-        line = f"{f.action.replace('_', ' '):<24} {f.kind:<14} {pages:>5} pages  {f.stored_path}"
+        where = f.stored_path if f.stored_path is not None else f"(not stored) {f.source}"
+        line = f"{f.action.replace('_', ' '):<24} {f.kind:<14} {pages:>5} pages  {where}"
         typer.echo(line + (f"\n    PROBLEM: {f.problem}" if f.problem else ""))
     if not result.files:
         typer.echo("No files found in the folder.")
@@ -148,7 +148,10 @@ def status(all_deals: bool = typer.Option(False, "--all", help="include delivere
     from .db.session import session_scope
     from .db.types import utcnow
 
-    _require_database()
+    try:
+        _require_database()
+    except (ValueError, OSError) as exc:
+        _fail(str(exc))
     now = utcnow()
     with session_scope() as s:
         deals = (list(s.scalars(sa.select(Deal).order_by(Deal.created_at.desc(), Deal.id)))
@@ -181,13 +184,22 @@ def backup(to: Optional[Path] = typer.Option(None, "--to", help="backup folder (
         warnings.simplefilter("always")
         try:
             result = run_backup(to)
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             _fail(str(exc))
     for w in caught:
         typer.echo(f"Warning: {w.message}", err=True)
     typer.echo(f"Database snapshot: {result.database}")
     typer.echo(f"Deal files: {result.deal_files_copied} copied, {result.deal_files_unchanged} unchanged, "
                f"in {result.folder / 'deals'}")
+    if result.deal_files_changed:
+        typer.echo(f"Warning: {len(result.deal_files_changed)} deal file(s) differ from their last backup copy. "
+                   f"Deal files are not meant to change; both copies are kept. Check:", err=True)
+        for path in result.deal_files_changed:
+            typer.echo(f"    {path}", err=True)
+    for problem in result.problems:
+        typer.echo(f"PROBLEM: not backed up: {problem}", err=True)
+    if result.problems:
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

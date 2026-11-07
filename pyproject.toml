@@ -15,7 +15,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "sqlalchemy>=2.0,<2.2",
     "alembic>=1.13",
-    "typer>=0.12",
+    "typer>=0.28",          # the version tested; older releases showed local variables in tracebacks
 ]
 
 [project.scripts]
