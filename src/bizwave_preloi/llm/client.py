@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,12 +28,11 @@ from typing import Any, Optional, Protocol, Tuple, Type, Union
 
 from pydantic import BaseModel
 
-from ..config import DEFAULT_MODEL, settings
+from ..config import settings
 from ..ops.runlog import RunLog
 from .register import USES, Use
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
-__all__ = ["ask", "enabled", "load_prompt", "AnthropicTransport", "Reply", "Transport", "DEFAULT_MODEL"]
 Content = Union[str, list]
 
 
@@ -56,7 +54,9 @@ class AnthropicTransport:
 
     def __init__(self, api_key: Optional[str] = None):
         import anthropic                          # loaded only when Claude is actually called
-        self._client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
+        # With api_key None the SDK reads ANTHROPIC_API_KEY from the environment itself (after
+        # config.settings() has applied .env).
+        self._client = anthropic.Anthropic(api_key=api_key)
 
     def parse(self, *, model, system, content, answer_shape, max_tokens, timeout_seconds) -> Reply:
         response = self._client.with_options(timeout=float(timeout_seconds), max_retries=1).messages.parse(
