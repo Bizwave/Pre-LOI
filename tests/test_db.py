@@ -381,3 +381,84 @@ def test_cli_takes_the_revision_as_written_in_the_plan(tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["downgrade", "--url", url, "base", "--revision", "-1"])
     assert current_revision(url) == "0001_core"
+
+
+# --------------------------------------------------------------------------- on_hold (P2.8, Chan 17:59)
+# Review round 1, should-fix 2: on_hold must not be a shortcut past ready (the SLA clock and the pipeline
+# run). From on_hold a deal goes back only to the status it had before the hold, or is cancelled.
+
+def _deal_at(s, path):
+    from bizwave_preloi.db import repo
+    repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+    for status in path:
+        repo.transition(s, "acme-hvac", status, by="chan")
+
+
+@pytest.mark.parametrize("before, back, refused", [
+    (["awaiting_documents"], "awaiting_documents", ["ready", "processing", "in_review"]),
+    (["awaiting_documents", "ready"], "ready", ["awaiting_documents", "processing", "in_review"]),
+    (["awaiting_documents", "ready", "processing"], "processing", ["ready", "in_review"]),
+    (["awaiting_documents", "ready", "processing", "in_review"], "in_review", ["processing", "ready"]),
+])
+def test_on_hold_returns_only_to_where_it_came_from(db_url, before, back, refused):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.models import DealEvent
+    from bizwave_preloi.db.session import session_scope
+    from bizwave_preloi.db.status import InvalidTransition
+
+    with session_scope(db_url) as s:
+        _deal_at(s, before + ["on_hold"])
+    with session_scope(db_url) as s:
+        events = s.query(DealEvent).count()
+        for target in refused:
+            with pytest.raises(InvalidTransition, match=f"back to '{back}'"):
+                repo.transition(s, "acme-hvac", target, by="chan")
+        assert s.query(DealEvent).count() == events and not s.new          # nothing written
+        assert repo.transition(s, "acme-hvac", back, by="chan").status == back
+
+
+def test_on_hold_can_always_be_cancelled(db_url):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        _deal_at(s, ["awaiting_documents", "on_hold"])
+        assert repo.transition(s, "acme-hvac", "cancelled", by="chan").status == "cancelled"
+
+
+def test_the_reviewers_shortcut_is_closed(db_url):
+    """awaiting_documents -> on_hold -> in_review -> approved -> delivered reached delivery with no
+    package_complete_at (no SLA clock, no pipeline run)."""
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+    from bizwave_preloi.db.status import InvalidTransition
+
+    with session_scope(db_url) as s:
+        _deal_at(s, ["awaiting_documents", "on_hold"])
+        with pytest.raises(InvalidTransition):
+            repo.transition(s, "acme-hvac", "in_review", by="chan")
+
+
+def test_every_way_to_delivery_passes_ready():
+    """Over the flow itself: walking every allowed move (with on_hold returning only where it came from),
+    no path from created reaches delivered without passing ready."""
+    from bizwave_preloi.db.status import ALLOWED, check
+
+    def moves(state):
+        status, held_from, seen_ready = state
+        for target in ALLOWED[status]:
+            try:
+                check(status, target, held_from=held_from)
+            except ValueError:
+                continue
+            yield (target, status if target == "on_hold" else None, seen_ready or target == "ready")
+
+    start = ("created", None, False)
+    seen, todo = {start}, [start]
+    while todo:
+        for nxt in moves(todo.pop()):
+            if nxt not in seen:
+                seen.add(nxt)
+                todo.append(nxt)
+    assert ("delivered", None, True) in seen
+    assert not any(status == "delivered" and not ready for status, _, ready in seen)

@@ -87,7 +87,7 @@ def transition(s: Session, deal_id: str, to_status: str, *, by: str, detail: Opt
     deal = s.get(Deal, deal_id)
     if deal is None:
         raise ValueError(f"No deal {deal_id!r}")
-    check(deal.status, to_status)              # raises InvalidTransition; nothing written
+    check(deal.status, to_status, held_from=_held_from(s, deal))   # InvalidTransition; nothing written
     by, when = _who(by), _now(at)
     s.add(DealEvent(deal_id=deal_id, at=when, kind="status_change", from_status=deal.status,
                     to_status=to_status, by=by, detail=detail))
@@ -98,6 +98,16 @@ def transition(s: Session, deal_id: str, to_status: str, *, by: str, detail: Opt
     deal.status = to_status
     deal.updated_at = when
     return deal
+
+
+def _held_from(s: Session, deal: Deal) -> Optional[str]:
+    """For a deal on hold, the status it had before the latest hold (from its events, in the order written)."""
+    if deal.status != "on_hold":
+        return None
+    return s.scalar(sa.select(DealEvent.from_status)
+                    .where(DealEvent.deal_id == deal.id, DealEvent.kind == "status_change",
+                           DealEvent.to_status == "on_hold")
+                    .order_by(DealEvent.id.desc()).limit(1))
 
 
 # --------------------------------------------------------------------------- documents and pages
