@@ -605,18 +605,23 @@ def test_current_on_a_missing_database_creates_nothing(tmp_path, capsys):
 # only their own connection. These run two writers against one database file.
 
 def _hold_write_lock(path, seconds):
-    """Another process's writer: takes the write lock now and commits after `seconds` (test only)."""
-    import sqlite3
+    """Another process's writer: takes the write lock now and commits after `seconds`. Its own engine,
+    outside the app's pool, stands in for a second process (still through SQLAlchemy, CLAUDE.md §8)."""
     import threading
 
-    other = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
-    other.execute("BEGIN IMMEDIATE")
-    other.execute("INSERT INTO customers (name, email, created_at) VALUES "
-                  "('Other Writer', 'other@example.com', '2026-11-06 12:00:00.000000')")
+    import sqlalchemy as sa
+
+    other = sa.create_engine("sqlite:///" + path.as_posix(), connect_args={"check_same_thread": False},
+                             poolclass=sa.pool.NullPool)
+    conn = other.connect()
+    conn.exec_driver_sql("BEGIN IMMEDIATE")
+    conn.exec_driver_sql("INSERT INTO customers (name, email, created_at) VALUES "
+                         "('Other Writer', 'other@example.com', '2026-11-06 12:00:00.000000')")
 
     def release():
-        other.execute("COMMIT")
-        other.close()
+        conn.exec_driver_sql("COMMIT")
+        conn.close()
+        other.dispose()
     timer = threading.Timer(seconds, release)
     timer.start()
     return timer
@@ -812,3 +817,43 @@ def test_cli_refuses_a_url_given_as_a_revision(tmp_path, capsys):
     assert exit_.value.code == 2 and "looks like a database URL" in capsys.readouterr().err
     assert not elsewhere.exists()
     assert not (config.settings().data_dir / "bizwave.db").exists()       # no stray database either
+
+
+# --------------------------------------------------------------------------- migration hardening (P2.13, Chan 19:00)
+
+def test_a_migration_waits_for_another_writer(db_url, tmp_path):
+    import time
+
+    from alembic import command
+
+    from bizwave_preloi.db import migrate
+
+    _seed(db_url)
+    scripts = _trial_scripts(tmp_path, REBUILD_DEALS)
+    timer = _hold_write_lock(tmp_path / "test.db", 1.0)
+    started = time.monotonic()
+    try:
+        migrate._run(command.upgrade, db_url, "head", script_location=scripts)
+    finally:
+        timer.join()
+    assert 0.5 < time.monotonic() - started < 5
+    assert migrate.current_revision(db_url) == "zz_trial"
+    assert "industry VARCHAR(200)" in _deals_sql(db_url)
+
+
+def test_a_failed_migration_setup_returns_no_changed_connection(db_url, tmp_path, monkeypatch):
+    from alembic import command
+
+    from bizwave_preloi.db import migrate
+    from bizwave_preloi.db.session import get_engine
+
+    def broken_listen(*args, **kwargs):
+        raise RuntimeError("setup failed")
+    monkeypatch.setattr(migrate.event, "listen", broken_listen)
+    with pytest.raises(RuntimeError, match="setup failed"):
+        migrate._run(command.upgrade, db_url, "head", script_location=_trial_scripts(tmp_path, REBUILD_DEALS))
+    raw = get_engine(db_url).pool.connect()
+    try:
+        assert raw.driver_connection.isolation_level == ""         # the changed connection was discarded
+    finally:
+        raw.close()

@@ -43,7 +43,9 @@ def _config(script_location: str = SCRIPT_LOCATION) -> Config:
 
 
 def _sqlite_begin(connection) -> None:
-    connection.exec_driver_sql("BEGIN")
+    # IMMEDIATE takes the write lock at the start, so busy_timeout makes the migration wait for another
+    # writer instead of failing part-way.
+    connection.exec_driver_sql("BEGIN IMMEDIATE")
 
 
 def _require_existing(url: Optional[str]) -> None:
@@ -57,12 +59,12 @@ def _run(command_fn, url: Optional[str], revision: str, *, script_location: str 
     engine = get_engine(url)
     sqlite = engine.dialect.name == "sqlite"
     with engine.connect() as connection:
-        if sqlite:
-            driver = connection.connection.driver_connection
-            driver.isolation_level = None                    # pysqlite: no transactions of its own...
-            event.listen(connection, "begin", _sqlite_begin)  # ...so BEGIN comes first and covers the DDL
-            driver.execute("PRAGMA foreign_keys=OFF")          # only takes effect outside a transaction
         try:
+            if sqlite:   # inside the try: if any of this fails, the connection is still discarded
+                driver = connection.connection.driver_connection
+                driver.isolation_level = None                    # pysqlite: no transactions of its own...
+                event.listen(connection, "begin", _sqlite_begin)  # ...so BEGIN comes first and covers DDL
+                driver.execute("PRAGMA foreign_keys=OFF")          # only takes effect outside a transaction
             with connection.begin():
                 cfg.attributes["connection"] = connection
                 command_fn(cfg, revision)
