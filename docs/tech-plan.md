@@ -218,7 +218,8 @@ so measure it on the first live reviews rather than estimating.
 - **Keep client data outside the repository** (`BIZWAVE_DATA_DIR`). `.claude/settings.json` in the repo
   denies Claude Code reads of `.env`, `deals/` and the default data folder as a second guard. A deny
   rule is a guard, not a wall: Claude Code's shell can still read files, so the folder location is the
-  real protection. **If you move the data folder or the run log, add a matching `Read(...)` deny rule:
+  real protection. **If you move the data folder, the run log or the database, or set a backup folder
+  (`BIZWAVE_BACKUP_DIR`, which holds a copy of every client file), add a matching `Read(...)` deny rule:
   the shipped rule covers only the default `~/BizWaveData`.**
 - **Build and debug with synthetic or redacted samples in Claude Code.** Anything Claude Code reads or
   prints goes to the model. Run live client deals yourself, in a normal terminal and the console.
@@ -229,7 +230,7 @@ so measure it on the first live reviews rather than estimating.
 - Retention: state in the engagement letter how long client files are kept; `bw purge DEAL` (post-sprint)
   deletes a deal's files and redacts its database rows.
 
-## 9. Packets by day (about 54 hours)
+## 9. Packets by day (about 56 hours)
 
 Each packet: plan doc in `tasks/plans/`, tests first, whole suite green, stop for Chan (CLAUDE.md §6).
 
@@ -237,7 +238,7 @@ Each packet: plan doc in `tasks/plans/`, tests first, whole suite green, stop fo
 |---|---|---|---|
 | Mon 9 | **P1 Settings and data folder:** `config.py` (python-dotenv), `BIZWAVE_DATA_DIR`, run log moved there | 0.5 | tests pass with a temp data folder |
 | Mon 9 | **P2 Database core:** SQLAlchemy models for customers, deals, deal_events, documents, pages, pipeline_runs; Alembic baseline; round-trip test; `DecimalText` type | 2.5 | migrations round-trip; models tested with real values |
-| Mon 9 | **P3 CLI skeleton:** `bw new-deal`, `bw intake`, `bw status`, `bw backup` | 1.5 | intake of a synthetic folder records documents and pages |
+| Mon 9 | **P3 CLI skeleton:** `bw new-deal`, `bw intake`, `bw status`, `bw backup` | 2 | intake of a synthetic folder records documents and pages |
 | Mon 9 | Non-code: 8–10 sample CIMs (redacted or public where possible), outreach, engagement letter | 3 | |
 | Tue 10 | Decisions D1–D3 (SOP text, earnings basis, lender views) | 2 | YAML statuses updated |
 | Tue 10 | Ground truth: hand-key 3 samples into `truth.yaml` (periods, lines, add-backs, pages) | 3 | |
