@@ -5,6 +5,7 @@ these work from any folder and from an installed copy.
     upgrade(url, "head")           # any database URL
     downgrade(url, "-1")           # one step back ("base" removes everything); url is required
     current_revision(url)          # e.g. "0001_core", or None for an empty database
+    head_revision()                # the newest revision the code ships
 
 Schema changes only ever go through a new revision file in migrations/versions/, tested
 upgrade -> downgrade -> upgrade (CLAUDE.md §6 step 4).
@@ -31,6 +32,7 @@ from alembic.config import Config
 from alembic.migration import MigrationContext
 from sqlalchemy import event
 
+from .. import config
 from ..config import database_file, settings
 from .session import get_engine
 
@@ -91,11 +93,12 @@ def _backup_live_database_first(url: Optional[str], action: str, revision: str) 
     snapshot; a database file that does not exist yet has nothing to save."""
     live = database_file(settings().database_url)
     target = database_file(url if url is not None else settings().database_url)
-    if live is None or target is None or target != live or not target.exists():
+    if live is None or target is None or not target.exists():
+        return
+    if config._real(target) != config._real(live):     # links followed, case folded: the same file counts
         return
     if action == "upgrade":
-        from alembic.script import ScriptDirectory
-        wanted = ScriptDirectory.from_config(_config()).get_current_head() if revision == "head" else revision
+        wanted = head_revision() if revision == "head" else revision
         if current_revision(url) == wanted:
             return
     from ..ops.backup import backup_database        # here, not at the top: ops.backup imports the database layer
@@ -116,6 +119,12 @@ def downgrade(url: Optional[str] = None, revision: str = "-1") -> None:
     _require_existing(url)
     _backup_live_database_first(url, "downgrade", revision)
     _run(command.downgrade, url, revision)
+
+
+def head_revision() -> str:
+    """The newest revision in migrations/versions (what `upgrade()` brings a database to)."""
+    from alembic.script import ScriptDirectory
+    return ScriptDirectory.from_config(_config()).get_current_head()
 
 
 def current_revision(url: Optional[str] = None) -> Optional[str]:
