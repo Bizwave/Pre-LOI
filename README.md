@@ -22,8 +22,8 @@ default `C:\Users\<you>\BizWaveData` (`~/BizWaveData` on a Mac); set `BIZWAVE_DA
 Keep it out of OneDrive, Dropbox, Google Drive or iCloud: sync can corrupt the open database. Put
 sample PDFs in its `samples` folder and run `python scripts/pdf_inventory.py`.
 
-If you move the data folder (or the run log), also add a matching `Read(...)` deny rule to
-`.claude/settings.json`: the rule there only covers the default `~/BizWaveData`.
+If you move the data folder, the run log or the database (`BIZWAVE_DATABASE_URL`), also add a matching
+`Read(...)` deny rule to `.claude/settings.json`: the rule there only covers the default `~/BizWaveData`.
 
 ## What is here
 
