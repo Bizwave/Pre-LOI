@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import secrets
 import subprocess
 from datetime import datetime
 from decimal import Decimal
@@ -32,7 +33,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
 from .. import config, rules
-from ..schemas import DEAL_ID_PATTERN
+from ..schemas import DEAL_ID_PATTERN, WINDOWS_RESERVED
 from .models import Customer, Deal, DealEvent, Document, Page, PipelineRun
 from .status import InvalidTransition, check
 from .types import check_aware, check_cents, check_decimal, utcnow
@@ -81,6 +82,9 @@ def create_deal(s: Session, *, deal_id: str, customer_id: int, tier: str, by: st
     if not isinstance(deal_id, str) or not DEAL_ID.fullmatch(deal_id):
         raise ValueError(f"Deal id {deal_id!r} must be 3-41 characters: lower-case letters, digits and "
                          f"hyphens, starting with a letter or digit (e.g. 'acme-hvac').")
+    if deal_id in WINDOWS_RESERVED:
+        raise ValueError(f"Deal id {deal_id!r} is a reserved name on Windows and cannot be a folder name; "
+                         f"choose another code.")
     by = _who(by)
     _one_of(tier, Deal.__table__.c.tier, "tier")
     check_cents(list_price_cents)
@@ -96,6 +100,44 @@ def create_deal(s: Session, *, deal_id: str, customer_id: int, tier: str, by: st
     s.add(DealEvent(deal_id=deal_id, at=now, kind="status_change", from_status=None,
                     to_status="created", by=by))
     return deal
+
+
+# Built-in word lists for generated code names: neutral words, never a client's or seller's name.
+_ADJECTIVES = ("amber", "azure", "brisk", "calm", "cedar", "clear", "copper", "coral", "crisp", "dawn",
+               "ember", "fern", "frost", "golden", "granite", "harbor", "indigo", "ivory", "jade", "juniper",
+               "lunar", "maple", "meadow", "misty", "north", "ochre", "olive", "quiet", "river", "russet",
+               "sage", "silver", "slate", "solar", "spruce", "steady", "summit", "tidal", "velvet", "willow")
+_NOUNS = ("falcon", "heron", "otter", "badger", "lynx", "osprey", "bison", "crane", "marten", "plover",
+          "egret", "wren", "kestrel", "beaver", "ibex", "puffin", "condor", "gannet", "stoat", "tern",
+          "canyon", "delta", "fjord", "glacier", "grove", "mesa", "ridge", "tundra", "valley", "reef")
+
+
+def suggest_deal_id(s: Session) -> str:
+    """A free code name such as "amber-falcon" (or "amber-falcon-2"), from neutral built-in words."""
+    pick = secrets.SystemRandom()
+    candidate = ""
+    for _ in range(50):
+        candidate = f"{pick.choice(_ADJECTIVES)}-{pick.choice(_NOUNS)}"
+        if s.get(Deal, candidate) is None:
+            return candidate
+    n = 2
+    while s.get(Deal, f"{candidate}-{n}") is not None:
+        n += 1
+    return f"{candidate}-{n}"
+
+
+def open_deals(s: Session) -> List[Deal]:
+    """Deals that are neither delivered nor cancelled, newest first."""
+    return list(s.scalars(sa.select(Deal).where(Deal.status.not_in(("delivered", "cancelled")))
+                          .order_by(Deal.created_at.desc(), Deal.id)))
+
+
+def hours_since_package_complete(deal: Deal, now: datetime) -> Optional[float]:
+    """Hours from the moment the package was complete (the SLA clock's start) to `now`; None before then.
+    Time left on the SLA needs the SLA rules (P15)."""
+    if deal.package_complete_at is None:
+        return None
+    return (check_aware(now) - deal.package_complete_at).total_seconds() / 3600
 
 
 def transition(s: Session, deal_id: str, to_status: str, *, by: str, detail: Optional[str] = None,
@@ -165,6 +207,15 @@ def add_document(s: Session, deal_id: str, path: Path, *, kind: str,
     document = Document(deal_id=deal_id, filename=file.name, kind=kind, sha256=digest, size_bytes=len(data),
                         stored_path=stored_path, received_at=received)
     s.add(document)
+    return document
+
+
+def set_document_kind(s: Session, document_id: int, kind: str) -> Document:
+    """Change a recorded document's kind (the CPA's correction of the file-name guess)."""
+    document = s.get(Document, document_id)
+    if document is None:
+        raise ValueError(f"No document {document_id}")
+    document.kind = _one_of(kind, Document.__table__.c.kind, "Document kind")
     return document
 
 

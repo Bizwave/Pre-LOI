@@ -17,7 +17,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .pl_ladder import CALC_KINDS, SECTIONS
 
@@ -171,6 +171,9 @@ class Flag(Model):
 # A deal id is a code name and the deal's folder name under deals/. Shared with db/repo.py, which matches
 # it with re.fullmatch (Python's "$" would also accept a trailing newline).
 DEAL_ID_PATTERN = r"^[a-z0-9][a-z0-9-]{2,40}$"
+# Names Windows cannot use for a file or folder (P3): refused as deal ids too.
+WINDOWS_RESERVED = frozenset({"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)),
+                              *(f"lpt{i}" for i in range(1, 10))})
 
 
 class Deal(Model):
@@ -184,3 +187,10 @@ class Deal(Model):
     flags: List[Flag] = Field(default_factory=list)
     asking_price: Optional[Decimal] = None
     proposed_price: Optional[Decimal] = None
+
+    @field_validator("id")
+    @classmethod
+    def _not_reserved(cls, value: str) -> str:
+        if value.lower() in WINDOWS_RESERVED:
+            raise ValueError(f"{value!r} is a reserved name on Windows and cannot be a deal folder")
+        return value
