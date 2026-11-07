@@ -23,6 +23,7 @@ Plan: tasks/plans/2026-11-06_p1_settings.md
 from __future__ import annotations
 
 import os
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -140,8 +141,20 @@ def settings(dotenv_path: Optional[Path] = None) -> Settings:
 # --------------------------------------------------------------------------- data folders
 
 def _real(path: Path) -> str:
-    """Absolute, links followed (also for folders that do not exist yet), case-folded on Windows."""
-    return os.path.normcase(str(Path(path).resolve(strict=False)))
+    """Absolute, links followed (also for folders that do not exist yet), case-folded on Windows and
+    macOS (both usually case-insensitive; folding there can only over-refuse, never miss)."""
+    text = os.path.normcase(str(Path(path).resolve(strict=False)))
+    return text.casefold() if sys.platform == "darwin" else text
+
+
+def _synced_folder(path: Path) -> Optional[str]:
+    """The first folder name in `path`, as written or with links followed, that looks like a sync
+    client's folder; None otherwise."""
+    for candidate in (Path(path), Path(path).resolve(strict=False)):
+        for part in candidate.parts:
+            if any(marker in part.lower() for marker in SYNC_FOLDER_MARKERS):
+                return part
+    return None
 
 
 def _inside(child: Path, parent: Path) -> bool:
@@ -165,8 +178,7 @@ def ensure_data_dirs(s: Optional[Settings] = None) -> Settings:
                 f"The run log {s.runlog_path} is inside the repository {REPO_ROOT}. It holds model "
                 f"outputs for client deals: set BIZWAVE_RUNLOG to a path outside the repository, or "
                 f"leave it empty to use <data folder>/runlog.jsonl.")
-    synced = next((part for part in s.data_dir.parts
-                   if any(marker in part.lower() for marker in SYNC_FOLDER_MARKERS)), None)
+    synced = _synced_folder(s.data_dir)
     if synced:
         warnings.warn(
             f"The data folder {s.data_dir} is inside a synced folder ('{synced}'). Keep the database "
