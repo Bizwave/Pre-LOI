@@ -108,3 +108,22 @@ def test_a_broken_rule_file_is_refused(tmp_path, monkeypatch):
     rules_module.reload()
     with pytest.raises(ValueError, match="does not compile"):
         rules_module.addback_rules()
+
+
+def test_intake_document_kinds_match_the_database():
+    """rules.DocumentKind lists the documents.kind values (db/models.py); the two must not drift."""
+    import typing
+
+    from bizwave_preloi.db.models import Document
+    from bizwave_preloi.rules import DocumentKind
+    assert set(typing.get_args(DocumentKind)) == set(Document.__table__.c.kind.type.enums)
+
+
+@pytest.mark.parametrize("name, kind", [
+    ("Project Falcon CIM.pdf", "cim"), ("2024 P&L.pdf", "p_and_l"), ("Profit_and_Loss.pdf", "p_and_l"),
+    ("Balance-Sheet 2024.pdf", "balance_sheet"), ("Add-backs schedule.xlsx", "recast"),
+    ("decimal notes.pdf", "other"), ("deck.pdf", "other"),
+])
+def test_intake_kinds_from_file_names(name, kind):
+    from bizwave_preloi.rules import intake_rules
+    assert intake_rules().kind_for(name) == kind

@@ -2,7 +2,7 @@
 files next to this module. This module loads them and refuses a file that is malformed, so a
 typo in a rule fails loudly at load time instead of silently changing a Flash Review.
 
-    from bizwave_preloi.rules import addback_rules, sba_params, flag_rules, taxonomy, validation
+    from bizwave_preloi.rules import addback_rules, sba_params, flag_rules, taxonomy, validation, intake_rules
 
 Each loader is cached; call `reload()` in tests after editing a file.
 """
@@ -225,7 +225,58 @@ def validation() -> ValidationSettings:
     return ValidationSettings(**_read("validation.yaml"))
 
 
+# ------------------------------------------------------------------------------ intake
+
+# The values of documents.kind (db/models.py); a test keeps the two lists equal.
+DocumentKind = Literal["cim", "recast", "p_and_l", "balance_sheet", "other"]
+
+
+class DocumentKindRule(_Strict):
+    kind: DocumentKind
+    patterns: List[str] = Field(min_length=1)
+
+    @field_validator("patterns")
+    @classmethod
+    def _compile(cls, patterns: List[str]) -> List[str]:
+        for pattern in patterns:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(f"pattern {pattern!r} does not compile: {exc}") from None
+        return patterns
+
+
+class IntakeRules(_Strict):
+    status: Literal["draft", "confirmed"]
+    source: str
+    document_kinds: List[DocumentKindRule] = Field(min_length=1)
+    unmatched_kind: DocumentKind
+    skip_names: List[str]
+
+    def kind_for(self, file_name: str) -> str:
+        """The kind of a file, from its name (first matching row wins)."""
+        text = normalize_file_name(file_name)
+        for row in self.document_kinds:
+            if any(re.search(p, text) for p in row.patterns):
+                return row.kind
+        return self.unmatched_kind
+
+    def skips(self, file_name: str) -> bool:
+        return file_name.startswith(".") or file_name.lower() in {n.lower() for n in self.skip_names}
+
+
+def normalize_file_name(file_name: str) -> str:
+    text = file_name.lower().replace("&", " and ")
+    text = re.sub(r"[_\-.]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+@lru_cache(maxsize=None)
+def intake_rules() -> IntakeRules:
+    return IntakeRules(**_read("intake.yaml"))
+
+
 def reload() -> None:
     """Forget cached rules (tests, or after editing a YAML file in a running session)."""
-    for loader in (taxonomy, addback_rules, sba_params, flag_rules, validation):
+    for loader in (taxonomy, addback_rules, sba_params, flag_rules, validation, intake_rules):
         loader.cache_clear()
