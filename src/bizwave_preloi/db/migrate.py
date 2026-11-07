@@ -8,6 +8,10 @@ these work from any folder and from an installed copy.
 
 Schema changes only ever go through a new revision file in migrations/versions/, tested
 upgrade -> downgrade -> upgrade (CLAUDE.md §6 step 4).
+
+On SQLite a migration runs with foreign keys switched off (a batch "recreate" drops and rebuilds a parent
+table while child rows exist) and inside one transaction. Before it commits, PRAGMA foreign_key_check
+must come back empty; otherwise, or if any step fails, everything rolls back, including the schema.
 """
 from __future__ import annotations
 
@@ -22,17 +26,39 @@ from .session import get_engine
 SCRIPT_LOCATION = "bizwave_preloi.db:migrations"
 
 
-def _config() -> Config:
+def _config(script_location: str = SCRIPT_LOCATION) -> Config:
     cfg = Config()
-    cfg.set_main_option("script_location", SCRIPT_LOCATION)
+    cfg.set_main_option("script_location", script_location)
     return cfg
 
 
-def _run(command_fn, url: Optional[str], revision: str) -> None:
-    cfg = _config()
-    with get_engine(url).begin() as connection:
-        cfg.attributes["connection"] = connection
-        command_fn(cfg, revision)
+def _foreign_keys(connection, on: bool) -> None:
+    """Switch SQLite foreign keys on or off. Only works outside a transaction, so it goes straight to the
+    driver connection (which, see session.py, never opens a transaction by itself)."""
+    connection.connection.driver_connection.execute(f"PRAGMA foreign_keys={'ON' if on else 'OFF'}")
+
+
+def _run(command_fn, url: Optional[str], revision: str, *, script_location: str = SCRIPT_LOCATION) -> None:
+    cfg = _config(script_location)
+    engine = get_engine(url)
+    sqlite = engine.dialect.name == "sqlite"
+    with engine.connect() as connection:
+        if sqlite:
+            _foreign_keys(connection, on=False)
+        try:
+            with connection.begin():
+                cfg.attributes["connection"] = connection
+                command_fn(cfg, revision)
+                if sqlite:
+                    broken = connection.exec_driver_sql("PRAGMA foreign_key_check").all()
+                    if broken:
+                        raise RuntimeError(f"Migration to {revision!r} left {len(broken)} row(s) whose foreign "
+                                           f"key points nowhere (first: {tuple(broken[0])}); rolled back.")
+        finally:
+            if sqlite:
+                _foreign_keys(connection, on=True)
+                if connection.connection.driver_connection.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
+                    connection.invalidate()        # never hand a connection without foreign keys back
 
 
 def upgrade(url: Optional[str] = None, revision: str = "head") -> None:

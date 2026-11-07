@@ -1,4 +1,6 @@
-"""Engines and sessions. Every connection to SQLite gets foreign keys, WAL and a busy timeout.
+"""Engines and sessions. Every connection to SQLite gets foreign keys, WAL and a busy timeout, and
+transactions that SQLAlchemy controls (BEGIN is sent explicitly), so schema changes roll back with
+everything else when a migration fails.
 
     with session_scope() as s:      # commits on success, rolls back on any exception
         ...
@@ -21,11 +23,18 @@ _ENGINES: Dict[str, Engine] = {}
 
 
 def _sqlite_pragmas(dbapi_connection, _record) -> None:
+    # pysqlite would otherwise start transactions itself and leave DDL outside them; with
+    # isolation_level None it starts none, and _sqlite_begin sends BEGIN when SQLAlchemy begins.
+    dbapi_connection.isolation_level = None
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA busy_timeout=5000")
     cursor.close()
+
+
+def _sqlite_begin(connection) -> None:
+    connection.exec_driver_sql("BEGIN")
 
 
 def get_engine(url: Optional[str] = None) -> Engine:
@@ -45,6 +54,7 @@ def get_engine(url: Optional[str] = None) -> Engine:
     engine = sa.create_engine(url)
     if engine.dialect.name == "sqlite":
         event.listen(engine, "connect", _sqlite_pragmas)
+        event.listen(engine, "begin", _sqlite_begin)
     _ENGINES[url] = engine
     return engine
 
