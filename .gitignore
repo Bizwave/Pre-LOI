@@ -37,6 +37,16 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+# SQLite's companion files: the WAL holds the most recent writes
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
 
 # Personal Claude Code settings (the shared .claude/settings.json is committed)
 .claude/settings.local.json

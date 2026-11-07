@@ -348,3 +348,19 @@ def test_first_migration_constraint_names_are_pinned(tmp_path):
     for _, _, sql in rows:
         names |= set(re.findall(r"CONSTRAINT (\w+)", sql or ""))
     assert names == FIRST_MIGRATION_NAMES
+
+
+@pytest.mark.parametrize("name", ["bizwave.db", "bizwave.db-wal", "bizwave.db-shm", "bizwave.db-journal",
+                                  "x.sqlite-wal", "x.sqlite3-shm"])
+def test_git_ignores_database_files_and_their_companions(name):
+    """Review round 1, should-fix 9: a safety net if a database ever lands in the repository (WAL on)."""
+    import shutil
+    import subprocess
+
+    from bizwave_preloi import config
+
+    if shutil.which("git") is None or not (config.REPO_ROOT / ".git").exists():
+        pytest.skip("not a git checkout")
+    # At the repository root: everything under deals/ is ignored anyway.
+    result = subprocess.run(["git", "check-ignore", "-q", "--no-index", name], cwd=config.REPO_ROOT)
+    assert result.returncode == 0, f"{name} is not ignored by .gitignore"
