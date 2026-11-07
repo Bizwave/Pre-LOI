@@ -175,3 +175,23 @@ def test_backup_reports_changed_files(tmp_path):
     assert "acme-hvac/outputs/memo.pdf" in r.output
     r = _bw("backup", "--to", tmp_path / "b" / "deals" / "acme-hvac" / "outputs" / "memo.pdf")
     assert r.exit_code == 1 and "is a file" in r.output and isinstance(r.exception, SystemExit)
+
+
+def test_no_unclosed_database_warning_at_exit(tmp_path):
+    """Pooled SQLite connections are closed before Python exits (P3 review round 3, nit 6): `bw backup`
+    into the default folder printed "ResourceWarning: unclosed database" after finishing."""
+    import os
+    import subprocess
+    import sys
+
+    from bizwave_preloi.config import REPO_ROOT, settings
+    from bizwave_preloi.db.migrate import upgrade
+
+    upgrade()
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src"), "BIZWAVE_DATA_DIR": str(settings().data_dir),
+           "BIZWAVE_LOAD_DOTENV": "0"}
+    for args in (["backup"], ["status"]):
+        run = subprocess.run([sys.executable, "-X", "dev", "-m", "bizwave_preloi.cli", *args], env=env,
+                             capture_output=True, text=True, timeout=120)
+        assert run.returncode == 0, run.stderr
+        assert "ResourceWarning" not in run.stderr, (args, run.stderr)

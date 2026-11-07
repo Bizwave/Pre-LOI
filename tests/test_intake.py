@@ -331,3 +331,171 @@ def test_recorded_names_are_compared_as_the_disk_compares_them(deal, tmp_path, m
     _pdf(folder / "cim.pdf", "Confidential information memorandum, a different file")
     result = intake_module.intake(deal, folder, by="chan")
     assert [(f.stored_path, f.action) for f in result.files] == [("inputs/cim-v2.pdf", "copied_as_new_version")]
+
+
+# --------------------------------------------------------------------------- P3 review round 3
+
+def _two_identical_cims_and_a_pnl(tmp_path):
+    folder = tmp_path / "in"
+    _pdf(folder / "a CIM.pdf", "Confidential information memorandum, synthetic")
+    (folder / "b CIM.pdf").write_bytes((folder / "a CIM.pdf").read_bytes())
+    _pdf(folder / "notes P&L.pdf", "Synthetic P&L")
+    return folder
+
+
+def test_identical_files_when_the_first_record_keeps_failing(deal, tmp_path, monkeypatch):
+    """Two identical files and the first one's record is refused: both are that content's problem, the
+    other files are still recorded, and nothing crashes (P3 review round 3, should-fix 1)."""
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.ops.intake import intake
+
+    folder = _two_identical_cims_and_a_pnl(tmp_path)
+    real = repo.add_document
+
+    def refuse(s, deal_id, path, **kw):
+        if path.name == "a CIM.pdf":
+            raise ValueError("simulated refusal")
+        return real(s, deal_id, path, **kw)
+    monkeypatch.setattr(repo, "add_document", refuse)
+    result = intake(deal, folder, by="chan")
+    by_name = {f.source.name: (f.action, f.stored_path) for f in result.files}
+    assert by_name == {"a CIM.pdf": ("failed", None), "b CIM.pdf": ("failed", None),
+                       "notes P&L.pdf": ("copied", "inputs/notes P&L.pdf")}
+    assert list(_documents(deal)) == ["inputs/notes P&L.pdf"] and result.status_after == "awaiting_documents"
+
+
+def test_identical_files_when_the_first_record_fails_once(deal, tmp_path, monkeypatch):
+    """A one-off read error on the first copy: the identical second file records that copy instead."""
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.ops.intake import intake
+
+    folder = _two_identical_cims_and_a_pnl(tmp_path)
+    real = repo.add_document
+    calls = []
+
+    def fail_once(s, deal_id, path, **kw):
+        calls.append(path.name)
+        if calls == ["a CIM.pdf"]:
+            raise PermissionError(13, "The process cannot access the file", str(path))
+        return real(s, deal_id, path, **kw)
+    monkeypatch.setattr(repo, "add_document", fail_once)
+    result = intake(deal, folder, by="chan")
+    by_name = {f.source.name: (f.action, f.stored_path) for f in result.files}
+    assert by_name["a CIM.pdf"] == ("failed", None)
+    assert by_name["b CIM.pdf"] == ("recorded", "inputs/a CIM.pdf")
+    assert sorted(_documents(deal)) == ["inputs/a CIM.pdf", "inputs/notes P&L.pdf"]
+    assert result.status_after == "ready"
+
+
+def test_a_hand_replaced_copy_is_never_read_in_place_of_the_record(deal, tmp_path):
+    """Pages are read only from a stored copy that matches its record: a readable PDF put in place of an
+    unreadable recorded one is reported, and the clock does not start on it (round 3, nit 2)."""
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    folder.mkdir()
+    (folder / "Project CIM.pdf").write_bytes(b"%PDF-1.4 damaged\n")
+    intake(deal, folder, by="chan")
+    _pdf(settings().deals_dir / deal / "inputs" / "Project CIM.pdf", "a readable PDF put there by hand")
+    result = intake(deal, folder, by="chan")
+    assert [(f.action, f.pages) for f in result.files] == [("already_recorded", None)]
+    assert "no longer matches its record" in result.files[0].problem
+    assert result.status_after == "awaiting_documents"
+    assert list(_documents(deal).values())[0][1] is None                   # no pages recorded
+
+
+def _file_changes_while_copied(monkeypatch):
+    """copy_to_temporary as if the buyer's file changed while it was being copied."""
+    from bizwave_preloi.ops import files as filestore
+    real = filestore.copy_to_temporary
+
+    def changed(source, folder):
+        temp, _ = real(source, folder)
+        return temp, "0" * 64
+    monkeypatch.setattr(filestore, "copy_to_temporary", changed)
+
+
+def test_a_file_changing_while_restored_is_not_placed(deal, tmp_path, monkeypatch):
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
+    intake(deal, folder, by="chan")
+    inputs = settings().deals_dir / deal / "inputs"
+    (inputs / "Project CIM.pdf").unlink()
+    _file_changes_while_copied(monkeypatch)
+    result = intake(deal, folder, by="chan")
+    assert result.files[0].action == "already_recorded"
+    assert "could not be restored" in result.files[0].problem and "changed while" in result.files[0].problem
+    assert list(inputs.iterdir()) == []                                     # nothing placed, nothing left
+
+
+def test_a_file_changing_while_copied_is_not_stored(deal, tmp_path, monkeypatch):
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
+    _file_changes_while_copied(monkeypatch)
+    result = intake(deal, folder, by="chan")
+    assert result.files[0].action == "failed" and "changed while" in result.files[0].problem
+    assert list((settings().deals_dir / deal / "inputs").iterdir()) == []
+
+
+def test_a_failed_restore_leaves_no_temporary_file(deal, tmp_path, monkeypatch):
+    """round 3, nit 3: the restore removes its temporary copy on every failure."""
+    from bizwave_preloi.ops import files as filestore
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
+    intake(deal, folder, by="chan")
+    inputs = settings().deals_dir / deal / "inputs"
+    (inputs / "Project CIM.pdf").unlink()
+
+    def busy(temp, final):
+        raise PermissionError(32, "The process cannot access the file because it is being used")
+    monkeypatch.setattr(filestore, "place", busy)
+    result = intake(deal, folder, by="chan")
+    assert "could not be restored" in result.files[0].problem
+    assert list(inputs.iterdir()) == []
+
+
+def test_an_unreadable_recorded_copy_is_reported_as_recorded(deal, tmp_path, monkeypatch):
+    """round 3, nit 5: a stored copy that cannot be read is the stored copy's problem; the file stays
+    recorded and the message does not blame the buyer's file."""
+    from bizwave_preloi.ops import files as filestore
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
+    intake(deal, folder, by="chan")
+    real = filestore.sha256
+    deals = settings().deals_dir
+
+    def locked(path):
+        if deals in path.parents:
+            raise PermissionError(13, "locked by another program", str(path))
+        return real(path)
+    monkeypatch.setattr(filestore, "sha256", locked)
+    result = intake(deal, folder, by="chan")
+    f = result.files[0]
+    assert (f.action, f.stored_path) == ("already_recorded", "inputs/Project CIM.pdf")
+    assert "recorded copy inputs/Project CIM.pdf could not be read" in f.problem
+
+
+def test_name_key_follows_the_disk(monkeypatch):
+    """round 3, nit 4: the key itself, on Windows (normcase) and macOS (case and Unicode form)."""
+    import ntpath
+    import unicodedata
+
+    from bizwave_preloi.ops import intake as intake_module
+
+    real_normcase = intake_module.os.path.normcase
+    if intake_module.os.name != "nt":
+        assert intake_module._name_key("inputs/CIM.pdf") != intake_module._name_key("inputs/cim.pdf")
+    monkeypatch.setattr(intake_module.os.path, "normcase", ntpath.normcase)               # as on Windows
+    assert intake_module._name_key("inputs/CIM.pdf") == intake_module._name_key("inputs/cim.pdf")
+    monkeypatch.setattr(intake_module.os.path, "normcase", real_normcase)   # not undo(): it undoes conftest
+    monkeypatch.setattr(intake_module.sys, "platform", "darwin")
+    nfd = unicodedata.normalize("NFD", "inputs/Résumé.pdf")
+    assert intake_module._name_key(nfd) == intake_module._name_key("inputs/RÉSUMÉ.pdf")

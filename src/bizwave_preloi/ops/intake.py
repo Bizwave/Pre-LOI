@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Set, Tuple
@@ -76,9 +77,10 @@ class _Planned:
 
 
 def _name_key(relative: str) -> str:
-    """A stored name as the disk compares it: case-insensitive on Windows (normcase) and macOS."""
+    """A stored name as the disk compares it: case-insensitive on Windows (normcase); on macOS (APFS) also
+    blind to Unicode normalization ("é" as one character or as e + accent)."""
     key = os.path.normcase(relative)
-    return key.casefold() if sys.platform == "darwin" else key
+    return unicodedata.normalize("NFC", key).casefold() if sys.platform == "darwin" else key
 
 
 def _source_files(source: Path) -> List[Tuple[Path, str]]:
@@ -223,25 +225,33 @@ def _known_content(source: Path, rel: str, sha: str, stored_path: str, deal_fold
     changed = (f"the recorded copy {stored_path} no longer matches its record (changed or damaged in the deal "
                f"folder since intake). The buyer's file still matches the record; nothing was changed. Check "
                f"the deal folder.")
-    if _matches(stored, sha):
-        return _Planned(source, rel, sha, "already_recorded", stored, None)
+
+    def checked() -> _Planned:
+        try:
+            intact = _matches(stored, sha)
+        except OSError as exc:                       # the stored copy, not the buyer's file, could not be read
+            return _Planned(source, rel, sha, "already_recorded", stored,
+                            f"the recorded copy {stored_path} could not be read to check it: {exc}")
+        return _Planned(source, rel, sha, "already_recorded", stored, None if intact else changed)
+
     if stored.exists() or stored.is_symlink():
-        return _Planned(source, rel, sha, "already_recorded", stored, changed)
+        return checked()
+    temp = None
     try:
         temp, copied = filestore.copy_to_temporary(source, stored.parent)
         if copied != sha:
-            filestore.discard(temp)
             raise OSError(f"{source.name} changed while it was being copied; run intake again")
         if filestore.place(temp, stored):
+            temp = None
             return _Planned(source, rel, sha, "restored", stored, None)
-        filestore.discard(temp)                       # something took the name meanwhile: look again
     except OSError as exc:
         return _Planned(source, rel, sha, "already_recorded", stored,
                         f"the recorded copy {stored_path} is missing from the deal folder and could not be "
                         f"restored: {exc}")
-    if _matches(stored, sha):
-        return _Planned(source, rel, sha, "already_recorded", stored, None)
-    return _Planned(source, rel, sha, "already_recorded", stored, changed)
+    finally:
+        if temp is not None:                         # never leave the temporary copy behind
+            filestore.discard(temp)
+    return checked()                                 # something took the name meanwhile: look again
 
 
 def _plan(files: List[Tuple[Path, str]], deal_folder: Path, recorded: Dict[str, str]) -> List[_Planned]:
@@ -272,11 +282,17 @@ def _record(s: Session, deal_id: str, item: _Planned, kind: str, override: Optio
     def failed(problem: str) -> IntakeFile:
         return IntakeFile(source=item.source, stored_path=None, action="failed", kind=kind, pages=None,
                           problem=problem)
+    action = item.action
     try:
-        if item.action in ("already_recorded", "restored"):        # the row exists: never re-read the file
+        document = None
+        if action in ("already_recorded", "restored"):              # the row exists: never re-read the file
             document = s.scalar(sa.select(Document).where(Document.deal_id == deal_id,
                                                           Document.sha256 == item.sha))
-        else:
+            if document is None:
+                # No row after all: an identical file earlier in this run was copied to item.target but its
+                # record failed. Record that copy now (add_document hashes it again), or fail this file too.
+                action = "recorded"
+        if document is None:
             document = repo.add_document(s, deal_id, item.target, kind=kind)
             s.flush()
         if override is not None and document.kind != override:
@@ -298,7 +314,7 @@ def _record(s: Session, deal_id: str, item: _Planned, kind: str, override: Optio
         return failed(f"copied but could not be read back: {exc}")
     except ValueError as exc:
         return failed(f"could not be recorded: {exc}")
-    return IntakeFile(source=item.source, stored_path=document.stored_path, action=item.action,
+    return IntakeFile(source=item.source, stored_path=document.stored_path, action=action,
                       kind=document.kind, pages=document.page_count, problem=problem)
 
 

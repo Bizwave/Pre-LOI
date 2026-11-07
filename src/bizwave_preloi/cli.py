@@ -12,6 +12,7 @@ run it only with BIZWAVE_DATA_DIR pointing at a scratch folder (live deals stay 
 """
 from __future__ import annotations
 
+import atexit
 import getpass
 import warnings
 from pathlib import Path
@@ -22,6 +23,16 @@ import typer
 
 app = typer.Typer(help="BizWave Flash Review: the operator's commands.", no_args_is_help=True,
                   add_completion=False, pretty_exceptions_show_locals=False)   # locals can hold client data
+
+
+def _close_database_connections() -> None:
+    from .db.session import dispose_engines
+    dispose_engines()
+
+
+# Pooled SQLite connections are closed before Python exits, so no "unclosed database" ResourceWarning is
+# printed after a command (P3 review round 3, nit 6).
+atexit.register(_close_database_connections)
 
 
 def _fail(message: str) -> NoReturn:
