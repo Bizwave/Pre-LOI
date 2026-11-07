@@ -16,8 +16,12 @@ from bizwave_preloi.config import REPO_ROOT
 
 PLANS = REPO_ROOT / "tasks" / "plans"
 COMMANDS = REPO_ROOT / ".claude" / "commands"
-# Written before the go-ahead rule existed; their records use the older free-text format.
+# Plans written before the go-ahead rule (W1, 2026-11-06), kept as they are. Do not add to this list:
+# every later plan is copied from the template and must pass the check.
 LEGACY = {"2026-11-06_scaffold.md", "2026-11-06_p1_settings.md"}
+# The headings the check reads. A plan without one of them fails rather than being skipped.
+REQUIRED = ("Sub-packets", "Revision log", "Reviewer Note", "Gate — first run")
+FENCE = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
 STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\b")
 GO_AHEAD = re.compile(r"^Go-ahead: (\d{4}-\d{2}-\d{2} \d{2}:\d{2})\b", re.M)
 
@@ -39,7 +43,8 @@ def _when(stamp: str) -> datetime | None:
 
 
 def _started(text: str) -> bool:
-    ticked = re.search(r"^\s*- \[[xX]\]", _section(text, "Sub-packets") or "", re.M)
+    """Work has started: a ticked box anywhere in the plan, or a first run recorded."""
+    ticked = re.search(r"^\s*- \[[xX]\]", text, re.M)
     first_run = (_section(text, "Gate — first run") or "").strip()
     return bool(ticked) or (first_run != "" and not first_run.startswith("<"))
 
@@ -48,12 +53,15 @@ def go_ahead_problems(text: str) -> list[str]:
     """Why a plan's record does not show a go-ahead after its latest revision.
 
     Empty when the record is in order, or when no work has started yet (nothing ticked, no first run).
+    Fails closed: a missing heading is a problem, never a reason to skip. Fenced code blocks are ignored.
     """
+    text = FENCE.sub("", text)
+    missing = [f"missing ## {h}" for h in REQUIRED if _section(text, h) is None]
+    if missing:
+        return missing
     if not _started(text):
         return []
     log = _section(text, "Revision log")
-    if log is None:
-        return ["no ## Revision log"]
     problems, revisions = [], []
     for line in log.splitlines():
         line = line.strip()
@@ -114,6 +122,14 @@ def _plan(sub="- [x] P9.1 step", log_rows=("| 2026-11-06 16:00 | Plan written | 
     (_plan(log_rows=("| 2026-13-06 16:00 | Plan written | yes |",)), "without a YYYY-MM-DD HH:MM date"),
     (_plan(log_rows=()), "Revision log has no rows"),
     (_plan(sub="- [ ] P9.1 step", note="", first_run="2 failed for their own reasons"), "no 'Go-ahead"),
+    (_plan(sub="- [ ] P9.1 step", note="", results="- [x] P9.1 done"), "no 'Go-ahead"),  # a tick anywhere
+    (_plan(note="Go-ahead: 2026-13-06 16:30"), "no 'Go-ahead"),                  # impossible date
+    (_plan(note="Go-ahead: 6 Nov 16:30"), "no 'Go-ahead"),                        # old free-text format
+    (_plan(note="```\nGo-ahead: 2026-11-06 16:30\n```"), "no 'Go-ahead"),       # inside a code fence
+    (_plan(note="```\n## not a heading\n```\nGo-ahead: 2026-11-06 16:30"), None),  # fence does not end it
+    (_plan().replace("## Sub-packets", "## Tasks"), "missing ## Sub-packets"),
+    (_plan(sub="- [ ] P9.1 step", note="").replace("## Gate — first run", "## Gate - first run"),
+     "missing ## Gate — first run"),
 ])
 def test_go_ahead_check_on_synthetic_plans(text, expected):
     problems = go_ahead_problems(text)
@@ -123,9 +139,10 @@ def test_go_ahead_check_on_synthetic_plans(text, expected):
         assert any(expected in p for p in problems), problems
 
 
-def test_go_ahead_check_needs_a_revision_log():
-    text = _plan().replace("## Revision log", "## Change history")
-    assert go_ahead_problems(text) == ["no ## Revision log"]
+def test_go_ahead_check_needs_every_heading_it_reads():
+    for heading in REQUIRED:
+        text = _plan(sub="- [ ] P9.1 step", note="").replace(f"## {heading}", "## Something else")
+        assert go_ahead_problems(text) == [f"missing ## {heading}"]
 
 
 def test_template_carries_the_formats_and_is_not_started():
