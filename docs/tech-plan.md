@@ -87,11 +87,11 @@ Built in the packet that first needs them (section 9).
 | Table | Key columns | Packet |
 |---|---|---|
 | `customers` | id, name, email, firm, referred_by, created_at | Day 1 |
-| `deals` | id (code name slug, e.g. `acme-hvac`), customer_id, tier (`instant` / `flash` / `flash_qoe`), status, list_price_cents, asking_price, proposed_price, industry, offer_deadline, package_complete_at (SLA start), due_at, delivered_at, verdict, buyer_decision, buyer_decision_at | Day 1 |
+| `deals` | id (code name slug, e.g. `acme-hvac`), customer_id, tier (`instant` / `flash` / `flash_qoe`), status, list_price_cents, asking_price, proposed_price, industry, offer_deadline, package_complete_at (SLA start), due_at, delivered_at, verdict, buyer_decision, buyer_decision_at, created_at, updated_at | Day 1 |
 | `deal_events` | deal_id, at, kind (status change, SLA pause or resume, note), from_status, to_status, by, detail | Day 1 |
-| `documents` | deal_id, filename, kind (cim, recast, p_and_l, balance_sheet, other), sha256, size_bytes, page_count, stored_path, received_at | Day 1 |
-| `pages` | document_id, page_no, chars, has_text_layer, tables_found, read_status (text, table, claude, manual, unread, skipped), run_id | Day 1 |
-| `pipeline_runs` | deal_id, started_at, finished_at, status, git_sha, rules_hash, llm_mode, stage results (JSON) | Day 1 |
+| `documents` | deal_id, filename, kind (cim, recast, p_and_l, balance_sheet, other), sha256, size_bytes, page_count, stored_path, received_at; one row per content (deal, sha256) and per file (deal, stored_path): a changed file at a recorded path is refused, saved under a new name instead | Day 1 |
+| `pages` | document_id, page_no, chars, has_text_layer, tables_found, images, read_status (pending, text, table, claude, manual, unread, skipped), run_id | Day 1 |
+| `pipeline_runs` | deal_id, started_at, finished_at, status, git_sha, rules_hash, llm_mode, stage results (JSON), error | Day 1 |
 | `statements` | deal_id, run_id, kind, units, data (JSON: `schemas.Statement`) | Day 3 |
 | `addbacks` | deal_id, run_id, ext_id, description, amounts (JSON), sources (JSON), rule_id, classified_by, confidence, lender_view, support_required (JSON) | Day 3 |
 | `footing_results` | run_id, statement_id, check, period, line_id, expected, found, difference, passed, severity, message, resolution, resolved_by, resolved_at, reason | Day 4 |
@@ -113,6 +113,9 @@ created -> awaiting_payment -> awaiting_documents -> ready (SLA clock starts)
         -> processing -> in_review -> approved -> delivered
 side states: on_hold (waiting on the buyer; SLA paused), cancelled
 ```
+
+From `on_hold` a deal goes back only to the status it had before the hold, or to `cancelled`, so a hold
+can never skip `ready` or the pipeline run (Chan, P2, 2026-11-06). As built in P2 (`db/status.py`).
 
 Every change writes a `deal_events` row. `bw status` lists open deals with time left on the SLA.
 
