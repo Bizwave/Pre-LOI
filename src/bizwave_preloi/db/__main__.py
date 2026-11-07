@@ -20,15 +20,18 @@ def main(argv=None) -> int:
     parser.add_argument("target", nargs="?", default=None,
                         help='target revision (upgrade default "head", downgrade default "-1", "base" = empty)')
     parser.add_argument("--revision", default=None, help="the same as the positional target")
-    args = parser.parse_args(argv)
+    # parse_intermixed_args: on Python 3.11 and 3.12, parse_args rejects a positional after --url
+    args = parser.parse_intermixed_args(argv)
     if args.target and args.revision and args.target != args.revision:
         parser.error(f"two different revisions given: {args.target!r} and --revision {args.revision!r}")
     revision = args.target or args.revision
-    if args.action == "upgrade":
-        upgrade(args.url, revision or "head")
-    elif args.action == "downgrade":
-        downgrade(args.url, revision or "-1")
+    if args.action == "current" and revision:
+        parser.error("`current` takes no revision")
     try:
+        if args.action == "upgrade":
+            upgrade(args.url, revision or "head")
+        elif args.action == "downgrade":
+            downgrade(args.url, revision or "-1")
         print(current_revision(args.url) or "(empty database)")
     except FileNotFoundError as error:
         print(f"{error}. Check --url, or run `upgrade` to create it.", file=sys.stderr)

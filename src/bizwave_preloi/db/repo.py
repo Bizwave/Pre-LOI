@@ -39,6 +39,13 @@ def _now(at: Optional[datetime]) -> datetime:
     return utcnow() if at is None else check_aware(at)
 
 
+def _one_of(value: str, column, what: str) -> str:
+    allowed = column.type.enums
+    if value not in allowed:
+        raise ValueError(f"{what} must be one of {', '.join(allowed)}; got {value!r}")
+    return value
+
+
 def _who(by: str) -> str:
     if not isinstance(by, str) or not by.strip():
         raise ValueError("'by' must name who made the change (e.g. 'chan')")
@@ -67,6 +74,7 @@ def create_deal(s: Session, *, deal_id: str, customer_id: int, tier: str, by: st
         raise ValueError(f"Deal id {deal_id!r} must be 3-41 characters: lower-case letters, digits and "
                          f"hyphens, starting with a letter or digit (e.g. 'acme-hvac').")
     by = _who(by)
+    _one_of(tier, Deal.__table__.c.tier, "tier")
     check_cents(list_price_cents)
     check_decimal(asking_price)
     check_decimal(proposed_price)
@@ -120,6 +128,7 @@ def add_document(s: Session, deal_id: str, path: Path, *, kind: str,
                  received_at: Optional[datetime] = None) -> Document:
     if s.get(Deal, deal_id) is None:
         raise ValueError(f"No deal {deal_id!r}")
+    _one_of(kind, Document.__table__.c.kind, "Document kind")
     received = _now(received_at)
     folder = _deal_folder(deal_id).resolve()
     file = Path(path).resolve()

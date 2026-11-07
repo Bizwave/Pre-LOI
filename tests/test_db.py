@@ -6,7 +6,7 @@ from bizwave_preloi.db.migrate import current_revision
 
 def test_db_url_fixture_is_migrated(db_url, tmp_path):
     assert db_url.endswith((tmp_path / "test.db").as_posix())
-    assert current_revision(db_url) == "0001_core"
+    assert current_revision(db_url) == _head()
 
 
 def test_migration_builds_exactly_the_models_schema(tmp_path):
@@ -48,12 +48,17 @@ def _trial_scripts(tmp_path, body: str):
 
     import bizwave_preloi.db as db_pkg
 
+    from alembic.script import ScriptDirectory
+
+    from bizwave_preloi.db import migrate
+
+    head = ScriptDirectory.from_config(migrate._config()).get_current_head()   # grows with later packets
     target = tmp_path / "scripts"
     shutil.copytree(Path(db_pkg.__file__).parent / "migrations", target,
                     ignore=shutil.ignore_patterns("__pycache__"))
-    (target / "versions" / "0002_trial.py").write_text(
+    (target / "versions" / "zz_trial.py").write_text(
         "import sqlalchemy as sa\nfrom alembic import op\n\n"
-        "revision = '0002_trial'\ndown_revision = '0001_core'\nbranch_labels = None\ndepends_on = None\n\n"
+        f"revision = 'zz_trial'\ndown_revision = {head!r}\nbranch_labels = None\ndepends_on = None\n\n"
         "def upgrade():\n" + body + "\n\n"
         "def downgrade():\n    pass\n", encoding="utf-8")
     return str(target)
@@ -102,6 +107,19 @@ def _tables(url):
         return {r[0] for r in conn.exec_driver_sql("select name from sqlite_master where type='table'")}
 
 
+def _head():
+    from alembic.script import ScriptDirectory
+
+    from bizwave_preloi.db import migrate
+    return ScriptDirectory.from_config(migrate._config()).get_current_head()
+
+
+def _deals_sql(url):
+    from bizwave_preloi.db.session import get_engine
+    with get_engine(url).connect() as conn:
+        return conn.exec_driver_sql("select sql from sqlite_master where name='deals'").scalar()
+
+
 def test_rebuilding_migration_keeps_every_row(db_url, tmp_path):
     from alembic import command
 
@@ -112,14 +130,14 @@ def test_rebuilding_migration_keeps_every_row(db_url, tmp_path):
     before = _counts(db_url)
     assert before == {"customers": 1, "deals": 1, "deal_events": 3, "documents": 1, "pages": 1,
                       "pipeline_runs": 1}
+    assert "industry VARCHAR(120)" in _deals_sql(db_url)
     migrate._run(command.upgrade, db_url, "head", script_location=_trial_scripts(tmp_path, REBUILD_DEALS))
-    assert migrate.current_revision(db_url) == "0002_trial"
+    assert migrate.current_revision(db_url) == "zz_trial"
     assert _counts(db_url) == before
     with get_engine(db_url).connect() as conn:
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
-        assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1     # back on for normal use
-        sql = conn.exec_driver_sql("select sql from sqlite_master where name='deals'").scalar()
-    assert "VARCHAR(200)" in sql
+        assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1     # pooled connections keep it on
+    assert "industry VARCHAR(200)" in _deals_sql(db_url)
     assert not any(t.startswith("_alembic_tmp") for t in _tables(db_url))
 
 
@@ -131,10 +149,12 @@ def test_failed_migration_rolls_back_schema_and_data(db_url, tmp_path):
     _seed(db_url)
     before = _counts(db_url)
     failing = _trial_scripts(tmp_path, REBUILD_DEALS + "\n    raise RuntimeError('trial failure')")
+    head = _head()
     with pytest.raises(RuntimeError, match="trial failure"):
         migrate._run(command.upgrade, db_url, "head", script_location=failing)
-    assert migrate.current_revision(db_url) == "0001_core"
+    assert migrate.current_revision(db_url) == head
     assert _counts(db_url) == before
+    assert "industry VARCHAR(120)" in _deals_sql(db_url)                    # the DDL rolled back too
     assert not any(t.startswith("_alembic_tmp") for t in _tables(db_url))   # nothing half-done to trip a retry
 
 
@@ -146,9 +166,10 @@ def test_migration_that_orphans_rows_is_refused(db_url, tmp_path):
     _seed(db_url)
     before = _counts(db_url)
     orphaning = _trial_scripts(tmp_path, "    op.execute('DELETE FROM customers')")
+    head = _head()
     with pytest.raises(RuntimeError, match="foreign key points nowhere"):
         migrate._run(command.upgrade, db_url, "head", script_location=orphaning)
-    assert migrate.current_revision(db_url) == "0001_core"
+    assert migrate.current_revision(db_url) == head
     assert _counts(db_url) == before
 
 
@@ -373,14 +394,17 @@ def test_cli_takes_the_revision_as_written_in_the_plan(tmp_path, capsys):
 
     url = "sqlite:///" + (tmp_path / "cli.db").as_posix()
     assert main(["upgrade", "--url", url]) == 0
-    assert current_revision(url) == "0001_core"
-    assert main(["downgrade", "--url", url, "base"]) == 0
+    assert current_revision(url) == _head()
+    assert main(["downgrade", "--url", url, "base"]) == 0                 # as written in the plan
     assert current_revision(url) is None
     assert main(["upgrade", "--url", url, "--revision", "0001_core"]) == 0
     assert current_revision(url) == "0001_core"
-    with pytest.raises(SystemExit):
-        main(["downgrade", "--url", url, "base", "--revision", "-1"])
-    assert current_revision(url) == "0001_core"
+    assert main(["downgrade", "base", "--url", url]) == 0                 # either order
+    assert main(["upgrade", "--url", url]) == 0
+    for bad in (["downgrade", "--url", url, "base", "--revision", "-1"], ["current", "--url", url, "base"]):
+        with pytest.raises(SystemExit):
+            main(bad)
+    assert current_revision(url) == _head()
 
 
 # --------------------------------------------------------------------------- on_hold (P2.8, Chan 17:59)
@@ -571,4 +595,103 @@ def test_current_on_a_missing_database_creates_nothing(tmp_path, capsys):
         current_revision(url)
     assert main(["current", "--url", url]) == 1
     assert "No database" in capsys.readouterr().err
+    assert main(["downgrade", "--url", url]) == 1                         # stepping back creates nothing either
     assert not missing.exists() and not missing.parent.exists()
+
+
+# --------------------------------------------------------------------------- two writers at once
+# Review round 2, should-fix 1: the round-1 transaction fix, applied to every connection, made a second
+# writer fail at once ("database is locked") instead of waiting for busy_timeout. Migrations now change
+# only their own connection. These run two writers against one database file.
+
+def _hold_write_lock(path, seconds):
+    """Another process's writer: takes the write lock now and commits after `seconds` (test only)."""
+    import sqlite3
+    import threading
+
+    other = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
+    other.execute("BEGIN IMMEDIATE")
+    other.execute("INSERT INTO customers (name, email, created_at) VALUES "
+                  "('Other Writer', 'other@example.com', '2026-11-06 12:00:00.000000')")
+
+    def release():
+        other.execute("COMMIT")
+        other.close()
+    timer = threading.Timer(seconds, release)
+    timer.start()
+    return timer
+
+
+def test_a_second_writer_waits_for_the_first(db_url, tmp_path):
+    import time
+
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        customer_id = _customer(s).id
+    timer = _hold_write_lock(tmp_path / "test.db", 1.0)
+    started = time.monotonic()
+    try:
+        with session_scope(db_url) as s:
+            assert s.get(repo.Deal, "acme-hvac") is None          # reads first, as every repo writer does
+            repo.create_deal(s, deal_id="acme-hvac", customer_id=customer_id, tier="flash", by="chan")
+    finally:
+        timer.join()
+    assert 0.5 < time.monotonic() - started < 5                    # waited for the lock, then wrote
+    assert _deal_count(db_url) == 1
+
+
+def test_a_read_does_not_block_a_later_write(db_url):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        customer_id = _customer(s).id
+    with session_scope(db_url) as a:
+        assert a.get(repo.Deal, "acme-hvac") is None              # A reads
+        with session_scope(db_url) as b:                           # B writes another deal and commits
+            repo.create_deal(b, deal_id="beta-co", customer_id=customer_id, tier="flash", by="chan")
+        repo.create_deal(a, deal_id="acme-hvac", customer_id=customer_id, tier="flash", by="chan")
+    assert _deal_count(db_url) == 2
+
+
+def test_a_migration_leaves_no_changed_connection_in_the_pool(db_url, tmp_path):
+    from alembic import command
+
+    from bizwave_preloi.db import migrate
+    from bizwave_preloi.db.session import get_engine
+
+    migrate._run(command.upgrade, db_url, "head", script_location=_trial_scripts(tmp_path, REBUILD_DEALS))
+    pool = get_engine(db_url).pool
+    connections = [pool.connect() for _ in range(3)]
+    try:
+        for raw in connections:
+            assert raw.driver_connection.isolation_level == ""          # pysqlite's default handling
+            assert raw.driver_connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+    finally:
+        for raw in connections:
+            raw.close()
+
+
+@pytest.mark.parametrize("call, error", [
+    ("deal", "tier must be one of"),
+    ("document", "Document kind must be one of"),
+])
+def test_tier_and_kind_are_checked_on_entry(db_url, call, error):
+    from bizwave_preloi import config
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        if call == "deal":
+            with pytest.raises(ValueError, match=error):
+                repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="premium", by="chan")
+        else:
+            repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+            folder = config.settings().deals_dir / "acme-hvac"
+            folder.mkdir(parents=True)
+            (folder / "cim.pdf").write_bytes(b"%PDF-1.4 synthetic\n")
+            with pytest.raises(ValueError, match=error):
+                repo.add_document(s, "acme-hvac", folder / "cim.pdf", kind="teaser")
+        assert not s.new

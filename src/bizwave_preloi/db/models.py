@@ -113,7 +113,9 @@ class PipelineRun(Base):
     git_sha: Mapped[Optional[str]] = mapped_column(sa.String(40))
     rules_hash: Mapped[str] = mapped_column(sa.String(64))
     llm_mode: Mapped[str] = mapped_column(_enum("llm_mode", LLM_MODES))
-    stages: Mapped[dict] = mapped_column(MutableDict.as_mutable(sa.JSON), default=dict)  # in-place edits saved
+    stages: Mapped[dict] = mapped_column(MutableDict.as_mutable(sa.JSON), default=dict)
+    # Top-level edits (run.stages["x"] = ...) are saved while the run object is held; nested edits are
+    # not. Assign whole stage dicts, or go through repo.finish_run, which replaces the dict.
     error: Mapped[Optional[str]] = mapped_column(sa.Text)
 
 

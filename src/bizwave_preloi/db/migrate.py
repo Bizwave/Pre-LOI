@@ -9,9 +9,15 @@ these work from any folder and from an installed copy.
 Schema changes only ever go through a new revision file in migrations/versions/, tested
 upgrade -> downgrade -> upgrade (CLAUDE.md §6 step 4).
 
-On SQLite a migration runs with foreign keys switched off (a batch "recreate" drops and rebuilds a parent
-table while child rows exist) and inside one transaction. Before it commits, PRAGMA foreign_key_check
-must come back empty; otherwise, or if any step fails, everything rolls back, including the schema.
+On SQLite a migration runs on a connection of its own, with foreign keys switched off (a batch
+"recreate" drops and rebuilds a parent table while child rows exist) and inside one transaction that
+includes the DDL. Before it commits, PRAGMA foreign_key_check must come back empty; otherwise, or if any
+step fails, everything rolls back, including the schema. That connection is then discarded, never
+returned to the pool, so ordinary sessions keep pysqlite's default handling (which lets busy_timeout
+make a second writer wait instead of failing).
+
+Looking at, or stepping back, a SQLite database file that does not exist is refused (FileNotFoundError):
+it would otherwise create an empty file, e.g. at a mistyped path. `upgrade` creates the file.
 """
 from __future__ import annotations
 
@@ -20,6 +26,7 @@ from typing import Optional
 from alembic import command
 from alembic.config import Config
 from alembic.migration import MigrationContext
+from sqlalchemy import event
 
 from ..config import database_file, settings
 from .session import get_engine
@@ -33,10 +40,14 @@ def _config(script_location: str = SCRIPT_LOCATION) -> Config:
     return cfg
 
 
-def _foreign_keys(connection, on: bool) -> None:
-    """Switch SQLite foreign keys on or off. Only works outside a transaction, so it goes straight to the
-    driver connection (which, see session.py, never opens a transaction by itself)."""
-    connection.connection.driver_connection.execute(f"PRAGMA foreign_keys={'ON' if on else 'OFF'}")
+def _sqlite_begin(connection) -> None:
+    connection.exec_driver_sql("BEGIN")
+
+
+def _require_existing(url: Optional[str]) -> None:
+    path = database_file(url if url is not None else settings().database_url)
+    if path is not None and not path.exists():
+        raise FileNotFoundError(f"No database at {path}")
 
 
 def _run(command_fn, url: Optional[str], revision: str, *, script_location: str = SCRIPT_LOCATION) -> None:
@@ -45,7 +56,10 @@ def _run(command_fn, url: Optional[str], revision: str, *, script_location: str 
     sqlite = engine.dialect.name == "sqlite"
     with engine.connect() as connection:
         if sqlite:
-            _foreign_keys(connection, on=False)
+            driver = connection.connection.driver_connection
+            driver.isolation_level = None                    # pysqlite: no transactions of its own...
+            event.listen(connection, "begin", _sqlite_begin)  # ...so BEGIN comes first and covers the DDL
+            driver.execute("PRAGMA foreign_keys=OFF")          # only takes effect outside a transaction
         try:
             with connection.begin():
                 cfg.attributes["connection"] = connection
@@ -57,9 +71,7 @@ def _run(command_fn, url: Optional[str], revision: str, *, script_location: str 
                                            f"key points nowhere (first: {tuple(broken[0])}); rolled back.")
         finally:
             if sqlite:
-                _foreign_keys(connection, on=True)
-                if connection.connection.driver_connection.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
-                    connection.invalidate()        # never hand a connection without foreign keys back
+                connection.invalidate()   # changed above: never back to the pool (foreign keys off)
 
 
 def upgrade(url: Optional[str] = None, revision: str = "head") -> None:
@@ -67,14 +79,13 @@ def upgrade(url: Optional[str] = None, revision: str = "head") -> None:
 
 
 def downgrade(url: Optional[str] = None, revision: str = "-1") -> None:
+    _require_existing(url)
     _run(command.downgrade, url, revision)
 
 
 def current_revision(url: Optional[str] = None) -> Optional[str]:
     """The database's revision, or None for an empty database. A SQLite file that does not exist is
     FileNotFoundError: looking must not create an empty database (e.g. at a mistyped path)."""
-    path = database_file(url if url is not None else settings().database_url)
-    if path is not None and not path.exists():
-        raise FileNotFoundError(f"No database at {path}")
+    _require_existing(url)
     with get_engine(url).connect() as connection:
         return MigrationContext.configure(connection).get_current_revision()
