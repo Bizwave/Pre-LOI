@@ -5,8 +5,10 @@ Revises:
 Create Date: 2026-11-06
 
 Written by hand. The column definitions are a frozen copy of models.py as of P2 (migrations never import
-the live models). op.create_table applies the naming convention of the environment's target metadata
-(models.Base), so constraint names match the models on SQLite and Postgres. Later changes go in new
+the live models). Constraint names are NOT frozen here: op.create_table applies the naming convention of
+the environment's target metadata (models.NAMING_CONVENTION). That convention and the names this revision
+creates are therefore pinned by tests/test_db.py (test_first_migration_constraint_names_are_pinned):
+changing the convention would give fresh and existing databases different names. Later changes go in new
 revisions; never edit this one after it is merged.
 """
 import sqlalchemy as sa

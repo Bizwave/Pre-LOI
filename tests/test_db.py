@@ -300,3 +300,51 @@ def test_run_stages_edited_in_place_are_saved(db_url):
         run.stages["inventory"] = {"pages": 2}
     with session_scope(db_url) as s:
         assert s.get(PipelineRun, run_id).stages == {"inventory": {"pages": 2}}
+
+
+# --------------------------------------------------------------------------- 0001's constraint names
+# Review round 1, should-fix 8: 0001 takes its constraint names from the live naming convention. If the
+# convention changed, new databases would get different names from existing ones and a later
+# drop_constraint(name) would fail on one of them. Both are pinned here; change them only with a new
+# migration that renames the constraints.
+
+FIRST_MIGRATION_NAMES = {
+    "ck_deal_events_event_kind", "ck_deals_deal_status", "ck_deals_tier", "ck_deals_verdict",
+    "ck_documents_document_kind", "ck_pages_page_no_positive", "ck_pages_read_status",
+    "ck_pipeline_runs_llm_mode", "ck_pipeline_runs_run_status",
+    "fk_deal_events_deal_id_deals", "fk_deals_customer_id_customers", "fk_documents_deal_id_deals",
+    "fk_pages_document_id_documents", "fk_pages_run_id_pipeline_runs", "fk_pipeline_runs_deal_id_deals",
+    "ix_deal_events_deal_id_at",
+    "pk_customers", "pk_deal_events", "pk_deals", "pk_documents", "pk_pages", "pk_pipeline_runs",
+    "uq_customers_email", "uq_documents_deal_id", "uq_pages_document_id",
+}
+
+
+def test_naming_convention_is_pinned():
+    from bizwave_preloi.db.models import NAMING_CONVENTION
+    assert NAMING_CONVENTION == {
+        "ix": "ix_%(column_0_label)s", "uq": "uq_%(table_name)s_%(column_0_name)s",
+        "ck": "ck_%(table_name)s_%(constraint_name)s",
+        "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s", "pk": "pk_%(table_name)s"}
+
+
+def test_first_migration_constraint_names_are_pinned(tmp_path):
+    import re
+
+    import sqlalchemy as sa
+
+    from bizwave_preloi.db.migrate import upgrade
+
+    url = "sqlite:///" + (tmp_path / "names.db").as_posix()
+    upgrade(url, "0001_core")
+    engine = sa.create_engine(url)
+    try:
+        with engine.connect() as conn:
+            rows = conn.exec_driver_sql("select type, name, sql from sqlite_master where name not like "
+                                        "'alembic%' and name not like 'sqlite_%'").all()
+    finally:
+        engine.dispose()
+    names = {name for kind, name, _ in rows if kind == "index"}
+    for _, _, sql in rows:
+        names |= set(re.findall(r"CONSTRAINT (\w+)", sql or ""))
+    assert names == FIRST_MIGRATION_NAMES
