@@ -230,7 +230,7 @@ so measure it on the first live reviews rather than estimating.
 - Retention: state in the engagement letter how long client files are kept; `bw purge DEAL` (post-sprint)
   deletes a deal's files and redacts its database rows.
 
-## 9. Packets by day (about 56 hours)
+## 9. Packets by day (about 57 hours)
 
 Each packet: plan doc in `tasks/plans/`, tests first, whole suite green, stop for Chan (CLAUDE.md §6).
 
@@ -242,7 +242,7 @@ Each packet: plan doc in `tasks/plans/`, tests first, whole suite green, stop fo
 | Mon 9 | Non-code: 8–10 sample CIMs (redacted or public where possible), outreach, engagement letter | 3 | |
 | Tue 10 | Decisions D1–D3 (SOP text, earnings basis, lender views) | 2 | YAML statuses updated |
 | Tue 10 | Ground truth: hand-key 3 samples into `truth.yaml` (periods, lines, add-backs, pages) | 3 | |
-| Tue 10 | **P4 Financeability persisted:** `financeability_runs`, structure from the intake form, `bw finance`; the intake form answers and AI consent (moved from P3, M12) | 2 | |
+| Tue 10 | **P4 Financeability persisted:** `financeability_runs`, structure from the intake form, `bw finance`; the intake form answers and AI consent (moved from P3, M12); `bw intake --dry-run`, a draft intake rule for projections and the nits carried from P3 (M13) | 3 | |
 | Wed 11 | **P5 Statement reader:** words and tables from the text layer, period headings, line kinds, sections, parents, add-back schedule; `statements` and `addbacks` tables | 5 | synthetic PDFs read exactly, with page numbers |
 | Wed 11 | **P6 Claude page fallback:** one-page PDF to `ingest.page_extraction`, schema validation, no-LLM path | 2 | fake-transport tests; one live check on a scanned sample |
 | Thu 12 | **P7 Pipeline orchestrator:** `run_deal`, stage records, `footing_results`, `overrides` | 2 | `bw run` end to end on a synthetic deal |

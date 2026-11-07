@@ -26,7 +26,7 @@ plan in `tasks/plans/` before it is built. Items marked "(scaffold)" were done o
 - [ ] D2 headline earnings basis
 - [ ] D3 lender view on each add-back row; set `status: confirmed`
 - [ ] Hand-key 3 samples as ground truth (`truth.yaml`: periods, lines, add-backs, pages)
-- [ ] P4 Financeability persisted (`financeability_runs`, `bw finance`)
+- [ ] P4 Financeability persisted (`financeability_runs`, `bw finance`; intake answers and AI consent, M12; `bw intake --dry-run`, projections rule, P3 carried nits, M13)
 - [ ] Open `models/financeability_model.xlsx` in Excel and check it against one of your own deal models
 
 ## Day 3 — Wed 11 Nov
