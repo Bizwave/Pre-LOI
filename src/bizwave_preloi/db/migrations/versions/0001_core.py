@@ -4,9 +4,10 @@ Revision ID: 0001_core
 Revises:
 Create Date: 2026-11-06
 
-Written by hand. The tables are a frozen copy of models.py as of P2 (migrations never import the live
-models), built on a MetaData with the same naming convention so constraint names match on SQLite and
-Postgres. Later changes go in new revisions; never edit this one after it is merged.
+Written by hand. The column definitions are a frozen copy of models.py as of P2 (migrations never import
+the live models). op.create_table applies the naming convention of the environment's target metadata
+(models.Base), so constraint names match the models on SQLite and Postgres. Later changes go in new
+revisions; never edit this one after it is merged.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -16,13 +17,6 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-NAMING_CONVENTION = {
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s",
-}
 STATUSES = ("created", "awaiting_payment", "awaiting_documents", "ready", "processing", "in_review",
             "approved", "delivered", "on_hold", "cancelled")
 
@@ -35,9 +29,9 @@ def _dt():
     return sa.DateTime(timezone=True)
 
 
-def _tables(meta: sa.MetaData):
-    customers = sa.Table(
-        "customers", meta,
+def _create_tables() -> None:
+    op.create_table(
+        "customers",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("email", sa.String(254), nullable=False, unique=True),
@@ -45,8 +39,8 @@ def _tables(meta: sa.MetaData):
         sa.Column("referred_by", sa.String(200)),
         sa.Column("created_at", _dt(), nullable=False),
     )
-    deals = sa.Table(
-        "deals", meta,
+    op.create_table(
+        "deals",
         sa.Column("id", sa.String(41), primary_key=True),
         sa.Column("customer_id", sa.Integer, sa.ForeignKey("customers.id"), nullable=False),
         sa.Column("tier", _enum("tier", ("instant", "flash", "flash_qoe")), nullable=False),
@@ -65,8 +59,8 @@ def _tables(meta: sa.MetaData):
         sa.Column("created_at", _dt(), nullable=False),
         sa.Column("updated_at", _dt(), nullable=False),
     )
-    deal_events = sa.Table(
-        "deal_events", meta,
+    op.create_table(
+        "deal_events",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("deal_id", sa.String(41), sa.ForeignKey("deals.id"), nullable=False),
         sa.Column("at", _dt(), nullable=False),
@@ -76,10 +70,10 @@ def _tables(meta: sa.MetaData):
         sa.Column("to_status", sa.String(30)),
         sa.Column("by", sa.String(80), nullable=False),
         sa.Column("detail", sa.Text),
-        sa.Index("ix_deal_events_deal_id_at", "deal_id", "at"),
     )
-    documents = sa.Table(
-        "documents", meta,
+    op.create_index("ix_deal_events_deal_id_at", "deal_events", ["deal_id", "at"])
+    op.create_table(
+        "documents",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("deal_id", sa.String(41), sa.ForeignKey("deals.id"), nullable=False),
         sa.Column("filename", sa.String(255), nullable=False),
@@ -92,8 +86,8 @@ def _tables(meta: sa.MetaData):
         sa.Column("received_at", _dt(), nullable=False),
         sa.UniqueConstraint("deal_id", "sha256"),
     )
-    pipeline_runs = sa.Table(
-        "pipeline_runs", meta,
+    op.create_table(
+        "pipeline_runs",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("deal_id", sa.String(41), sa.ForeignKey("deals.id"), nullable=False),
         sa.Column("started_at", _dt(), nullable=False),
@@ -105,8 +99,8 @@ def _tables(meta: sa.MetaData):
         sa.Column("stages", sa.JSON, nullable=False),
         sa.Column("error", sa.Text),
     )
-    pages = sa.Table(
-        "pages", meta,
+    op.create_table(
+        "pages",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("document_id", sa.Integer, sa.ForeignKey("documents.id"), nullable=False),
         sa.Column("page_no", sa.Integer, nullable=False),
@@ -120,16 +114,13 @@ def _tables(meta: sa.MetaData):
         sa.UniqueConstraint("document_id", "page_no"),
         sa.CheckConstraint("page_no >= 1", name="page_no_positive"),
     )
-    # creation order: parents before children
-    return [customers, deals, deal_events, documents, pipeline_runs, pages]
 
 
 def upgrade() -> None:
-    meta = sa.MetaData(naming_convention=NAMING_CONVENTION)
-    tables = _tables(meta)
-    meta.create_all(bind=op.get_bind(), tables=tables)
+    _create_tables()            # parents before children
 
 
 def downgrade() -> None:
+    op.drop_index("ix_deal_events_deal_id_at", table_name="deal_events")
     for name in ("pages", "pipeline_runs", "documents", "deal_events", "deals", "customers"):
         op.drop_table(name)
