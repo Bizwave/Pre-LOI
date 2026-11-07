@@ -19,18 +19,18 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   it passed. After merging P3, run `pip install -e .` again so `bw` exists.
 
 ### For Claude Code (Me)
-- [note] Location refusals work in both directions and through links: refuse a folder that *contains* a
+- [promoted → packet-reviewer checklist 8] Location refusals work in both directions and through links: refuse a folder that *contains* a
   protected folder (data, deals, backups, the repository) as well as one inside it, and compare paths with
   `config._real()` (links followed, case folded), never with `==`. Same kind as P1's run-log location gap:
   a promotion candidate for `/improve`. (source: P3 review round 1, should-fixes 1 and 8)
-- [note] "Never overwrite" holds against every record of a name and through interruptions: pick names
+- [promoted → packet-reviewer checklist 8] "Never overwrite" holds against every record of a name and through interruptions: pick names
   against recorded paths as well as the disk; write to an exclusive temporary file and link it into place;
   a backup never replaces a copy that differs (a difference means damage), it keeps both; a snapshot is
   written as `.partial` and renamed. Same kind as P2's destructive-defaults note: a promotion candidate.
   (source: P3 review round 1, should-fixes 3, 4, 5 and 6)
 - [note] Every keyword pattern gets a near-miss test, a name that must not match ("NDA - Confidential
   Information", "Forecast" containing "recast"). (source: P3 review round 1, should-fix 2)
-- [note] One bad item never stops a batch: catch per-item errors, including `OSError`, into that item's
+- [promoted → packet-reviewer checklist 10] One bad item never stops a batch: catch per-item errors, including `OSError`, into that item's
   problem; the command line catches `OSError` at its edge and prints one line. (source: P3 review round 1,
   should-fix 7)
 - [note] A new setting arrives with its test isolation (`_CLEARED` in conftest) and, if it names a folder
@@ -38,14 +38,14 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   review round 1, should-fixes 9 and 11)
 - [note] Every case the plan promises a test for gets one; check it by deleting the line that implements
   it and watching a test fail. (source: P3 review round 1, should-fix 10)
-- [note] The contract lagged the code a third time (P1, P2, P3): clarifications made while writing the
+- [promoted → packet-reviewer checklist 1, /execute step 2] The contract lagged the code a third time (P1, P2, P3): clarifications made while writing the
   gate (`recorded`, the no-op upgrade, `hours_since_package_complete`) went into a note, not the contract.
   Same kind in three packets: must be promoted at close (reviewer checklist and `/execute`; Chan's OK).
   (source: P3 review round 1, should-fix 12)
-- [note] A gate test whose first failure is a setup error (the missing CLI) has not shown that it fails
+- [promoted → /execute step 2] A gate test whose first failure is a setup error (the missing CLI) has not shown that it fails
   for its own reason; break the behaviour in a scratch copy and record that run. Repeat of a promoted P1
   lesson. (source: P3 review round 1, nit 20)
-- [note] "One item never stops the batch" covers every exception a per-item step can raise (the
+- [promoted → packet-reviewer checklist 10] "One item never stops the batch" covers every exception a per-item step can raise (the
   repository's `ValueError`, not only `OSError`) and every state the item's earlier record can be in (its
   stored copy missing, or changed). List those states before writing the handler. (source: P3 review round
   2, should-fix 1)
@@ -53,7 +53,7 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   both-directions rule went into intake's source check but not into the backup-folder check next to it,
   and the `==` rule missed a case-sensitive name comparison. (source: P3 review round 2, should-fix 2 and
   nit 3)
-- [note] A fix can break what it fixes: round 2's per-file handling added a database lookup with no
+- [promoted → packet-reviewer checklist 10] A fix can break what it fixes: round 2's per-file handling added a database lookup with no
   "not found" case, and a state created earlier in the same run (the first of two identical files failed
   to record) reached it, so one file stopped the run again. Every new lookup handles "not found"; every
   per-item path is tested with an earlier item of the same run having failed. Same kind as round-1
@@ -86,11 +86,11 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
 - [note] Check inputs in the function that receives them and raise the contract's error type before
   anything is written; match whole strings with `re.fullmatch` (`$` accepts a trailing newline).
   (source: P2 review round 1, should-fixes 4 and 5)
-- [note] Pin what must never change (0001's constraint names, the naming convention), never what grows
+- [promoted → packet-reviewer checklist 9] Pin what must never change (0001's constraint names, the naming convention), never what grows
   (the newest migration revision). Same kind as W1's "do not pin state the loop changes", now in a
   second packet: a promotion candidate for `/improve`. (source: P2 review round 1 should-fix 8; round 2
   should-fixes 3 and 4)
-- [note] When a fix changes behaviour, write its whole reach into the contract in the same commit: who
+- [promoted → packet-reviewer checklist 1] When a fix changes behaviour, write its whole reach into the contract in the same commit: who
   else it affects and what state a refusal leaves behind (the deal guard covers every deal update and
   rolls back the whole session). Repeat of P1's [note] on contract changes from review fixes, now in a
   second packet: a promotion candidate for `/improve`. (source: P2 focused review, should-fix 1)
@@ -158,7 +158,7 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
 - [promoted → packet-reviewer checklist 13, CLAUDE.md §8] Tests of a refusal must not be able to write
   into the real repository if the refusal breaks: point `config.REPO_ROOT` at a fake repository under the
   test's temp folder. (source: P1 review round 2, nit)
-- [note] When a review fix changes the contract, update the plan's contract and spec amendment in the
+- [promoted → packet-reviewer checklist 1] When a review fix changes the contract, update the plan's contract and spec amendment in the
   same commit as the fix, so the record never lags the code. (source: P1 review round 2, should-fix 1)
 
 ## Day 0 — packet loop added to CLAUDE.md (2026-11-06, branch `day-0/packet-loop`)

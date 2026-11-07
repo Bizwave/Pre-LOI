@@ -19,6 +19,9 @@ Exact names, types and example values for every interface this packet creates or
 <function signatures, table columns with types and nullability, JSON shapes, CLI arguments>
 ```
 
+Correction-round additions (filled during review corrections; Scope is not edited, which would reset the
+go-ahead): <module, function or behaviour added by a review fix, with the finding it answers>
+
 ## Sub-packets
 - [ ] P<n>.1 <small, committable step>
 - [ ] P<n>.2 ...
