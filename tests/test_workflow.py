@@ -1,7 +1,7 @@
 """Process rules of the packet loop that are checked mechanically (CLAUDE.md section 6).
 
-Go-ahead check (W1 correction, approved by Chan 2026-11-06 16:52 PT, "d yes"): every plan whose work has
-started records Chan's go-ahead as a `Go-ahead: YYYY-MM-DD HH:MM` line in its `## Reviewer Note`, and that
+Go-ahead check (W1 correction, approved by Chan 2026-11-06 16:52 PT, "d yes", and as built 17:29 PT,
+"d - Yes - checks every plan, agreed"): every plan whose work has started records Chan's go-ahead as a `Go-ahead: YYYY-MM-DD HH:MM` line in its `## Reviewer Note`, and that
 time is not earlier than the latest `## Revision log` row. Promoted from the first W1 lesson in
 `tasks/lessons.md`: a checklist promotion alone did not stop a build before sign-off.
 """
@@ -22,6 +22,8 @@ LEGACY = {"2026-11-06_scaffold.md", "2026-11-06_p1_settings.md"}
 # The headings the check reads. A plan without one of them fails rather than being skipped.
 REQUIRED = ("Sub-packets", "Revision log", "Reviewer Note", "Gate — first run")
 FENCE = re.compile(r"^```.*?^```[ \t]*$", re.M | re.S)
+TICK = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[[xX]\]", re.M)
+PLACEHOLDER = re.compile(r"<[^<>]*>")
 STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\b")
 GO_AHEAD = re.compile(r"^Go-ahead: (\d{4}-\d{2}-\d{2} \d{2}:\d{2})\b", re.M)
 
@@ -43,10 +45,9 @@ def _when(stamp: str) -> datetime | None:
 
 
 def _started(text: str) -> bool:
-    """Work has started: a ticked box anywhere in the plan, or a first run recorded."""
-    ticked = re.search(r"^\s*- \[[xX]\]", text, re.M)
-    first_run = (_section(text, "Gate — first run") or "").strip()
-    return bool(ticked) or (first_run != "" and not first_run.startswith("<"))
+    """Work has started: a ticked box anywhere in the plan, or anything but placeholders in the first run."""
+    first_run = PLACEHOLDER.sub("", _section(text, "Gate — first run") or "").strip()
+    return bool(TICK.search(text)) or first_run != ""
 
 
 def go_ahead_problems(text: str) -> list[str]:
@@ -56,9 +57,13 @@ def go_ahead_problems(text: str) -> list[str]:
     Fails closed: a missing heading is a problem, never a reason to skip. Fenced code blocks are ignored.
     """
     text = FENCE.sub("", text)
+    if re.search(r"^```", text, re.M):
+        return ["unclosed code fence"]
     missing = [f"missing ## {h}" for h in REQUIRED if _section(text, h) is None]
-    if missing:
-        return missing
+    twice = [f"duplicate ## {h}" for h in REQUIRED
+             if len(re.findall(rf"^## {re.escape(h)}[ \t]*$", text, re.M)) > 1]
+    if missing or twice:
+        return missing + twice
     if not _started(text):
         return []
     log = _section(text, "Revision log")
@@ -127,6 +132,13 @@ def _plan(sub="- [x] P9.1 step", log_rows=("| 2026-11-06 16:00 | Plan written | 
     (_plan(note="Go-ahead: 6 Nov 16:30"), "no 'Go-ahead"),                        # old free-text format
     (_plan(note="```\nGo-ahead: 2026-11-06 16:30\n```"), "no 'Go-ahead"),       # inside a code fence
     (_plan(note="```\n## not a heading\n```\nGo-ahead: 2026-11-06 16:30"), None),  # fence does not end it
+    (_plan(sub="* [x] P9.1 step", note=""), "no 'Go-ahead"),                    # other list markers count
+    (_plan(sub="1. [x] P9.1 step", note=""), "no 'Go-ahead"),
+    (_plan(sub="-  [X] P9.1 step", note=""), "no 'Go-ahead"),
+    (_plan(sub="- [ ] P9.1 step", note="", first_run="<placeholder>\n3 failed"), "no 'Go-ahead"),
+    (_plan(sub="- [ ] P9.1 step", note="", first_run="<two-line\nplaceholder>"), None),
+    (_plan(note="```\nGo-ahead: 2026-11-06 16:30"), "unclosed code fence"),
+    (_plan() + "\n## Revision log\n| 2026-11-06 18:00 | Later | yes |\n", "duplicate ## Revision log"),
     (_plan().replace("## Sub-packets", "## Tasks"), "missing ## Sub-packets"),
     (_plan(sub="- [ ] P9.1 step", note="").replace("## Gate — first run", "## Gate - first run"),
      "missing ## Gate — first run"),
