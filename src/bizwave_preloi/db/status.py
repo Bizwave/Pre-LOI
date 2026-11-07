@@ -26,7 +26,8 @@ ALLOWED: Dict[str, FrozenSet[str]] = {
     "delivered": frozenset(),
     "cancelled": frozenset(),
 }
-assert set(ALLOWED) == set(STATUSES)
+if set(ALLOWED) != set(STATUSES):        # an explicit check: `assert` is skipped under python -O
+    raise RuntimeError("status.ALLOWED must list every status in STATUSES")
 
 
 class InvalidTransition(ValueError):

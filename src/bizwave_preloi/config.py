@@ -7,10 +7,10 @@ from the environment itself; `Settings` only records whether one is present.)
     s.deals_dir, s.runlog_path, s.database_url, s.no_llm, s.llm_model ...
 
 Client files, the run log and the database live in a data folder OUTSIDE the repository, by default
-`~/BizWaveData` (`C:\\Users\\<you>\\BizWaveData` on Windows). A data folder or run log inside the
-repository is refused (paths are compared after following links); a data folder inside a OneDrive,
-Dropbox, Google Drive or iCloud folder is allowed with a warning, because a sync client can corrupt
-an open SQLite database (docs/tech-plan.md section 3). Relative paths are taken from the folder the
+`~/BizWaveData` (`C:\\Users\\<you>\\BizWaveData` on Windows). A data folder, run log or SQLite
+database file inside the repository is refused (paths are compared after following links); a data
+folder or database inside a OneDrive, Dropbox, Google Drive or iCloud folder is allowed with a warning,
+because a sync client can corrupt an open SQLite database (docs/tech-plan.md section 3). Relative paths are taken from the folder the
 command runs in, so prefer absolute paths in `.env`.
 
 A `.env` file in the repository folder is read once per process. It never overrides a variable

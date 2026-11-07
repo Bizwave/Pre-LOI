@@ -364,3 +364,20 @@ def test_git_ignores_database_files_and_their_companions(name):
     # At the repository root: everything under deals/ is ignored anyway.
     result = subprocess.run(["git", "check-ignore", "-q", "--no-index", name], cwd=config.REPO_ROOT)
     assert result.returncode == 0, f"{name} is not ignored by .gitignore"
+
+
+def test_cli_takes_the_revision_as_written_in_the_plan(tmp_path, capsys):
+    """Review round 1, should-fix 10: the plan's rollback command uses a positional revision."""
+    from bizwave_preloi.db.__main__ import main
+    from bizwave_preloi.db.migrate import current_revision
+
+    url = "sqlite:///" + (tmp_path / "cli.db").as_posix()
+    assert main(["upgrade", "--url", url]) == 0
+    assert current_revision(url) == "0001_core"
+    assert main(["downgrade", "--url", url, "base"]) == 0
+    assert current_revision(url) is None
+    assert main(["upgrade", "--url", url, "--revision", "0001_core"]) == 0
+    assert current_revision(url) == "0001_core"
+    with pytest.raises(SystemExit):
+        main(["downgrade", "--url", url, "base", "--revision", "-1"])
+    assert current_revision(url) == "0001_core"
