@@ -289,7 +289,7 @@ def test_add_document_hash_size_relative_path(migrated):
         s.flush()
         assert again.id == doc.id
         assert doc.sha256 == hashlib.sha256(data).hexdigest()
-        assert doc.size_bytes == len(data) == 340
+        assert doc.size_bytes == len(data) == 330  # spec amendment, Chan 2026-11-06 17:29 PT
         assert doc.stored_path == "inputs/cim.pdf"
         assert doc.filename == "cim.pdf" and doc.kind == "cim"
         assert doc.received_at.tzinfo is not None
