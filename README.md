@@ -25,6 +25,23 @@ sample PDFs in its `samples` folder and run `python scripts/pdf_inventory.py`.
 If you move the data folder, the run log or the database (`BIZWAVE_DATABASE_URL`), also add a matching
 `Read(...)` deny rule to `.claude/settings.json`: the rule there only covers the default `~/BizWaveData`.
 
+## Running deals (`bw`)
+
+```bash
+bw new-deal --customer pat@example.com --name "Pat Buyer" --tier flash   # prints the code name, e.g. amber-falcon
+bw paid amber-falcon                                  # payment received (by hand until Stripe); add --pilot to new-deal to skip
+bw intake amber-falcon --from "C:\Users\<you>\OneDrive\Requests\amber"   # copy, hash, classify, record the files
+bw intake amber-falcon --from <same folder> --kind "deck.pdf=cim"             # correct a file's kind
+bw status                                             # open deals and hours since the package was complete
+bw backup                                             # database snapshot + deal files into BIZWAVE_BACKUP_DIR
+```
+
+Intake never overwrites a file: a different file under a name already taken is saved as `-v2`, `-v3`.
+The 24-hour clock starts when a paid (or pilot) deal has a CIM whose pages could be read. Set
+`BIZWAVE_BACKUP_DIR` to your encrypted backup folder (a synced folder is fine for backups); upgrading or
+undoing the live database also writes a snapshot there first. After pulling P3, run `pip install -e .`
+again so the `bw` command exists.
+
 ## What is here
 
 - **SOP 50 10 8.1 financeability** (`finance/`): coverage at 1.25x on historical earnings, 10% equity with
