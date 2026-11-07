@@ -929,3 +929,14 @@ def test_suggested_codes_are_free_and_valid(db_url, monkeypatch):
             assert code == expected and re.fullmatch(DEAL_ID_PATTERN, code) and code not in WINDOWS_RESERVED
             repo.create_deal(s, deal_id=code, customer_id=customer_id, tier="flash", by="chan")
             s.flush()
+
+
+def test_closed_statuses_have_one_source():
+    """status.CLOSED (no way out) is what open_deals and intake both use (P3 review round 1, nit 22)."""
+    from bizwave_preloi.db import status
+    assert status.CLOSED == ("delivered", "cancelled")
+
+
+def test_head_revision_is_what_upgrade_reaches(db_url):
+    from bizwave_preloi.db import migrate
+    assert migrate.current_revision(db_url) == migrate.head_revision()

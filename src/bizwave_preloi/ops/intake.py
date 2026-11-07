@@ -4,43 +4,47 @@
     result = intake("acme-hvac", folder, by="chan", kinds={"deck.pdf": "cim"})   # correct a kind
 
 Files land in <data folder>/deals/<deal>/inputs/, keeping subfolders. A file is never overwritten: content
-the deal already has is not copied again, and a different file under a name already taken is saved as
-"<name>-v2<suffix>" (then -v3 ...). Every copy is created exclusively, so an existing file is never touched.
-Kinds come from rules/intake.yaml (file-name patterns) unless `kinds` names the file. PDFs are inventoried
-page by page; a PDF that cannot be read is still recorded, with the reason in `problem`.
+the deal already has is not copied again, and a different file under a name already taken (on disk or in
+the deal's records) is saved as "<name>-v2<suffix>" (then -v3 ...). Each copy is written under a hidden
+temporary name and linked into place only when complete (ops/files.py), so a name never holds a partial or
+replaced file. Kinds come from rules/intake.yaml (file-name patterns) unless `kinds` names the file. PDFs
+are inventoried page by page. A file that cannot be read, copied or inventoried is reported in `problem`
+and the run goes on with the others.
+
+The source folder must be the folder the buyer's files were delivered to: one inside, or containing, the
+data folder, the backup folder, the database, the run log or the repository is refused before anything is
+copied (it would bring the live database or another deal's files into this deal).
 
 The SLA clock starts (status `ready`, P2) when a deal waiting for documents has at least one CIM whose
 pages were read (Chan, P3 Q3). `start_clock_if_complete` is shared with `bw paid`.
 """
 from __future__ import annotations
 
-import hashlib
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from .. import config
-from ..config import settings
+from ..config import database_file, settings
 from ..db import repo
 from ..db.models import Deal, Document, Page
 from ..db.session import session_scope
+from ..db.status import CLOSED
 from ..ingest.inventory import inventory
 from ..rules import intake_rules
-
-CLOSED = ("delivered", "cancelled")
+from . import files as filestore
 
 
 @dataclass(frozen=True)
 class IntakeFile:
-    source: Path               # as found under the source folder
-    stored_path: str           # relative to the deal folder, forward slashes: "inputs/cim.pdf"
-    action: str                # "copied" | "copied_as_new_version" | "recorded" | "already_recorded"
+    source: Path                 # as found under the source folder
+    stored_path: Optional[str]   # relative to the deal folder, forward slashes: "inputs/cim.pdf"; None if failed
+    action: str                  # "copied" | "copied_as_new_version" | "recorded" | "already_recorded" | "failed"
     kind: str
-    pages: Optional[int]       # pages recorded; None for a non-PDF or an unreadable PDF
+    pages: Optional[int]         # pages recorded; None for a non-PDF, an unreadable PDF or a failed file
     problem: Optional[str]
 
 
@@ -53,12 +57,13 @@ class IntakeResult:
     message: str
 
 
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+@dataclass(frozen=True)
+class _Planned:
+    source: Path
+    relative: str                # under the source folder
+    action: str
+    target: Optional[Path]
+    problem: Optional[str]
 
 
 def _source_files(source: Path) -> List[Tuple[Path, str]]:
@@ -77,15 +82,24 @@ def _source_files(source: Path) -> List[Tuple[Path, str]]:
 
 
 def _check_source(source: Path) -> None:
+    """Refuse a source folder that is, is inside or contains a folder or file intake must never read from."""
     s = settings()
     if not source.is_dir():
         raise ValueError(f"{source} is not a folder. Give the folder the buyer's files are in.")
-    if config._inside(source, s.data_dir):
-        raise ValueError(f"{source} is inside the data folder {s.data_dir}; intake copies files INTO it. "
-                         f"Give the folder the files were delivered to.")
     if config.REPO_ROOT is not None and config._inside(source, config.REPO_ROOT):
         raise ValueError(f"{source} is inside the repository {config.REPO_ROOT}; client files must never be "
                          f"there. Move them out first.")
+    for label, folder in (("data folder", s.data_dir), ("backup folder", s.backup_dir)):
+        if config._inside(source, folder):
+            raise ValueError(f"{source} is inside the {label} {folder}; intake copies files into the data "
+                             f"folder. Give the folder the buyer's files were delivered to.")
+    protected = (("the data folder", s.data_dir), ("the backup folder", s.backup_dir),
+                 ("the database", database_file(s.database_url)), ("the run log", s.runlog_path),
+                 ("the repository", config.REPO_ROOT))
+    for label, path in protected:
+        if path is not None and config._inside(path, source):
+            raise ValueError(f"{source} contains {label} ({path}); intake would copy it, and other deals' "
+                             f"files, into this deal. Give the folder that holds only this buyer's files.")
 
 
 def _kind_overrides(kinds: Optional[Dict[str, str]], files: List[Tuple[Path, str]]) -> Dict[str, str]:
@@ -113,30 +127,57 @@ def _kind_overrides(kinds: Optional[Dict[str, str]], files: List[Tuple[Path, str
     return resolved
 
 
-def _free_version(target: Path) -> Path:
+def _names(target: Path) -> Iterator[Path]:
+    """The buyer's name, then "<stem>-v2<suffix>", "-v3" ..."""
+    yield target
     n = 2
     while True:
-        candidate = target.with_name(f"{target.stem}-v{n}{target.suffix}")
-        if not candidate.exists():
-            return candidate
+        yield target.with_name(f"{target.stem}-v{n}{target.suffix}")
         n += 1
 
 
-def _copy_exclusively(source: Path, target: Path) -> Path:
-    """Copy into a NEW file; if the name was taken meanwhile, take the next free version name."""
-    target.parent.mkdir(parents=True, exist_ok=True)
-    while True:
-        try:
-            with open(source, "rb") as src, open(target, "xb") as dst:
-                shutil.copyfileobj(src, dst)
-            return target
-        except FileExistsError:
-            target = _free_version(target)
+def _store(source: Path, sha: str, target: Path, deal_folder: Path, taken: Set[str]) -> Tuple[Path, str]:
+    """Put `source` (content `sha`, not yet recorded for the deal) under the first free name. A name is taken
+    when the deal's records use it or a different file is on disk there. A file already on disk with this
+    content (an interrupted run copied it but never recorded it) is used as it is: action "recorded"."""
+    temp = None
+    try:
+        for n, candidate in enumerate(_names(target)):
+            if candidate.relative_to(deal_folder).as_posix() in taken:
+                continue
+            if candidate.exists() or candidate.is_symlink():
+                if candidate.is_file() and not candidate.is_symlink() and filestore.sha256(candidate) == sha:
+                    return candidate, "recorded"
+                continue
+            if temp is None:
+                temp, copied = filestore.copy_to_temporary(source, candidate.parent)
+                if copied != sha:
+                    raise OSError(f"{source.name} changed while it was being copied; run intake again")
+            if filestore.place(temp, candidate):
+                temp = None
+                return candidate, "copied" if n == 0 else "copied_as_new_version"
+    finally:
+        if temp is not None:
+            filestore.discard(temp)
+    raise AssertionError("unreachable: _names never ends")
 
 
 def has_readable_cim(s: Session, deal_id: str) -> bool:
     return bool(s.scalar(sa.select(sa.func.count()).select_from(Document)
                          .where(Document.deal_id == deal_id, Document.kind == "cim", Document.page_count > 0)))
+
+
+def _waiting_message(s: Session, deal_id: str) -> str:
+    documents = s.scalars(sa.select(Document).where(Document.deal_id == deal_id).order_by(Document.id)).all()
+    if not documents:
+        return (f"No files are recorded for this deal yet: run `bw intake {deal_id} --from FOLDER`. The SLA "
+                f"clock starts when a readable CIM is in.")
+    cims = [d.filename for d in documents if d.kind == "cim"]      # none of them has readable pages
+    if cims:
+        return (f"The CIM ({', '.join(cims)}) has no readable PDF pages (not a PDF, encrypted or damaged), "
+                f"so the SLA clock has not started. Ask the buyer for a readable PDF, then run intake again.")
+    return ("No file was recognized as the CIM, so the SLA clock has not started. If one of the files is the "
+            "CIM, run intake again with --kind \"NAME=cim\".")
 
 
 def start_clock_if_complete(s: Session, deal_id: str, *, by: str) -> Tuple[str, str]:
@@ -147,12 +188,58 @@ def start_clock_if_complete(s: Session, deal_id: str, *, by: str) -> Tuple[str, 
             deal = repo.transition(s, deal_id, "ready", by=by, detail="package complete: a readable CIM")
             return deal.status, (f"Package complete: the SLA clock started at "
                                  f"{deal.package_complete_at:%Y-%m-%d %H:%M} UTC.")
-        return deal.status, ("No CIM with readable pages yet, so the SLA clock has not started. If one of these "
-                             "files is the CIM, run intake again with --kind \"NAME=cim\".")
+        return deal.status, _waiting_message(s, deal_id)
     if deal.status in ("created", "awaiting_payment"):
         return deal.status, (f"Files recorded. Waiting for payment: run `bw paid {deal_id}` once paid; the "
                              f"clock starts then if a readable CIM is in.")
     return deal.status, f"Files added to a deal already in '{deal.status}'; the clock is unchanged."
+
+
+def _plan(files: List[Tuple[Path, str]], deal_folder: Path, recorded: Dict[str, str]) -> List[_Planned]:
+    """Copy what is new (never overwriting); one file's error is its problem, not the run's."""
+    taken = set(recorded.values())
+    planned = []
+    for path, rel in files:
+        try:
+            sha = filestore.sha256(path)
+            if sha in recorded:
+                planned.append(_Planned(path, rel, "already_recorded", deal_folder / recorded[sha], None))
+                continue
+            target, action = _store(path, sha, deal_folder / "inputs" / rel, deal_folder, taken)
+        except OSError as exc:                       # unreadable (e.g. a cloud-only file), disk full ...
+            planned.append(_Planned(path, rel, "failed", None, f"could not be read or copied: {exc}"))
+            continue
+        stored = target.relative_to(deal_folder).as_posix()
+        recorded[sha] = stored
+        taken.add(stored)
+        planned.append(_Planned(path, rel, action, target, None))
+    return planned
+
+
+def _record(s: Session, deal_id: str, item: _Planned, kind: str, override: Optional[str]) -> IntakeFile:
+    try:
+        document = repo.add_document(s, deal_id, item.target, kind=kind)    # existing row for known content
+        s.flush()
+    except OSError as exc:
+        return IntakeFile(source=item.source, stored_path=None, action="failed", kind=kind, pages=None,
+                          problem=f"copied but could not be read back: {exc}")
+    if override is not None and document.kind != override:
+        repo.set_document_kind(s, document.id, override)
+    problem = None
+    has_pages = s.scalar(sa.select(sa.func.count()).select_from(Page).where(Page.document_id == document.id))
+    if item.target.suffix.lower() == ".pdf" and not has_pages:
+        try:
+            pages = inventory(item.target)
+        except Exception as exc:                     # encrypted, damaged or not a PDF
+            problem = f"unreadable PDF (encrypted or damaged): {exc}"
+        else:
+            if pages:
+                repo.record_pages(s, document.id, pages)
+            else:
+                problem = "unreadable PDF: no pages"
+    s.flush()
+    return IntakeFile(source=item.source, stored_path=document.stored_path, action=item.action,
+                      kind=document.kind, pages=document.page_count, problem=problem)
 
 
 def intake(deal_id: str, source: Path, *, by: str, kinds: Optional[Dict[str, str]] = None,
@@ -172,47 +259,16 @@ def intake(deal_id: str, source: Path, *, by: str, kinds: Optional[Dict[str, str
                                   .where(Document.deal_id == deal_id)).all())
 
     rules = intake_rules()
-    deal_folder = settings().deals_dir / deal_id
-    inputs = deal_folder / "inputs"
-    planned = []                                     # (source, relative, sha, action, target or None)
-    for path, rel in files:
-        sha = _sha256(path)
-        if sha in recorded:
-            planned.append((path, rel, sha, "already_recorded", deal_folder / recorded[sha]))
-            continue
-        target = inputs / rel
-        if target.exists() and _sha256(target) == sha:
-            action = "recorded"                      # copied by an earlier, interrupted run
-        elif target.exists():
-            target, action = _copy_exclusively(path, _free_version(target)), "copied_as_new_version"
-        else:
-            target, action = _copy_exclusively(path, target), "copied"
-        recorded[sha] = target.relative_to(deal_folder).as_posix()
-        planned.append((path, rel, sha, action, target))
-
+    planned = _plan(files, settings().deals_dir / deal_id, recorded)
     results = []
     with session_scope(url) as s:
-        for path, rel, sha, action, target in planned:
-            kind = overrides.get(rel, rules.kind_for(path.name))
-            document = repo.add_document(s, deal_id, target, kind=kind)      # existing row for known content
-            s.flush()
-            if rel in overrides and document.kind != overrides[rel]:
-                repo.set_document_kind(s, document.id, overrides[rel])
-            problem = None
-            has_pages = s.scalar(sa.select(sa.func.count()).select_from(Page).where(Page.document_id == document.id))
-            if target.suffix.lower() == ".pdf" and not has_pages:
-                try:
-                    pages = inventory(target)
-                except Exception as exc:                 # encrypted, damaged or not a PDF
-                    problem = f"unreadable PDF (encrypted or damaged): {exc}"
-                else:
-                    if pages:
-                        repo.record_pages(s, document.id, pages)
-                    else:
-                        problem = "unreadable PDF: no pages"
-            s.flush()
-            results.append(IntakeFile(source=path, stored_path=document.stored_path, action=action,
-                                      kind=document.kind, pages=document.page_count, problem=problem))
+        for item in planned:
+            kind = overrides.get(item.relative, rules.kind_for(item.source.name))
+            if item.target is None:
+                results.append(IntakeFile(source=item.source, stored_path=None, action="failed", kind=kind,
+                                          pages=None, problem=item.problem))
+                continue
+            results.append(_record(s, deal_id, item, kind, overrides.get(item.relative)))
         status_after, message = start_clock_if_complete(s, deal_id, by=by)
     return IntakeResult(deal_id=deal_id, files=results, status_before=status_before,
                         status_after=status_after, message=message)

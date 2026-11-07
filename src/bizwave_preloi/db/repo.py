@@ -35,7 +35,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from .. import config, rules
 from ..schemas import DEAL_ID_PATTERN, WINDOWS_RESERVED
 from .models import Customer, Deal, DealEvent, Document, Page, PipelineRun
-from .status import InvalidTransition, check
+from .status import CLOSED, InvalidTransition, check
 from .types import check_aware, check_cents, check_decimal, utcnow
 
 DEAL_ID = re.compile(DEAL_ID_PATTERN)     # the same pattern as schemas.Deal.id; always use fullmatch
@@ -68,6 +68,8 @@ def get_or_create_customer(s: Session, *, name: str, email: str, firm: Optional[
     email = email.strip().lower()
     if not email or "@" not in email:
         raise ValueError(f"Not an e-mail address: {email!r}")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("A customer needs a name (the buyer's name, as it goes on the deliverables).")
     existing = s.scalar(sa.select(Customer).where(Customer.email == email))
     if existing is not None:
         return existing
@@ -128,7 +130,7 @@ def suggest_deal_id(s: Session) -> str:
 
 def open_deals(s: Session) -> List[Deal]:
     """Deals that are neither delivered nor cancelled, newest first."""
-    return list(s.scalars(sa.select(Deal).where(Deal.status.not_in(("delivered", "cancelled")))
+    return list(s.scalars(sa.select(Deal).where(Deal.status.not_in(CLOSED))
                           .order_by(Deal.created_at.desc(), Deal.id)))
 
 
