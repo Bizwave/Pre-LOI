@@ -65,6 +65,16 @@ def _walk(s, deal_id, statuses, start=T0):
 
 # ------------------------------------------------------------------------- schema and migrations
 
+def _head_and_history():
+    """Spec amendment 2 (Chan 2026-11-06 18:23 PT): the newest revision grows with every migration
+    packet, so tests compare with the folder's head and check that 0001_core is in its history."""
+    from alembic.script import ScriptDirectory
+
+    from bizwave_preloi.db import migrate
+    script = ScriptDirectory.from_config(migrate._config())
+    return script.get_current_head(), {rev.revision for rev in script.walk_revisions()}
+
+
 def test_migration_round_trip(url):
     from bizwave_preloi.db.migrate import current_revision, downgrade, upgrade
     upgrade(url)
@@ -73,7 +83,8 @@ def test_migration_round_trip(url):
     assert not (CORE & _tables(url))
     upgrade(url)
     assert CORE <= _tables(url)
-    assert current_revision(url) == "0001_core"
+    head, history = _head_and_history()                  # spec amendment 2 (was == "0001_core")
+    assert current_revision(url) == head and "0001_core" in history
 
 
 def test_models_match_migration(migrated):
@@ -399,7 +410,8 @@ def test_default_database_in_data_folder():
     from bizwave_preloi.db.migrate import current_revision, upgrade
     upgrade()
     assert (settings().data_dir / "bizwave.db").is_file()
-    assert current_revision() == "0001_core"
+    head, history = _head_and_history()                  # spec amendment 2 (was == "0001_core")
+    assert current_revision() == head and "0001_core" in history
 
 
 def test_session_scope_rolls_back(migrated):
@@ -423,7 +435,8 @@ def test_cli_upgrade_and_current(url):
     cur = subprocess.run([sys.executable, "-m", "bizwave_preloi.db", "current", "--url", url],
                          capture_output=True, text=True, env=env, timeout=120)
     assert cur.returncode == 0, cur.stderr
-    assert "0001_core" in cur.stdout
+    head, history = _head_and_history()                  # spec amendment 2 (was "0001_core" in stdout)
+    assert cur.stdout.strip() == head and "0001_core" in history
 
 
 # ------------------------------------------------------------------------- P2.7 database location
