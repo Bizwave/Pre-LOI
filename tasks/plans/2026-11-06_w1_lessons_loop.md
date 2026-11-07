@@ -1,6 +1,8 @@
 # 2026-11-06 — W1 Self-improvement loop (workflow packet)
 
-Status: **signed off 6 Nov 2026 16:26** (Chan, chat: "2. Go ahead" to the proposal below) · building
+Status: **built, reviewed (PASS WITH FIXES) · waiting for Chan** to confirm this plan and the exact CLAUDE.md
+diff (see Reviewer Note). Chan's "2. Go ahead" (chat, 6 Nov 16:26) approved the proposal below, not this
+plan, which was written afterwards.
 Branch: `w1-lessons-loop` · Gate: `tests/plans/test_2026_11_06_w1_lessons_loop.py` · Budget: 1 hour
 Research step skipped: light packet. Not one of P1–P15: a workflow packet ("W") before P2 so P2 uses it.
 
@@ -31,10 +33,12 @@ has a status; the whole suite passes.
    reviewer checklist. The fifth P1 lesson stays a note.
 
 ## Scope
-In: CLAUDE.md §4 (command list), §6 (rules and steps 2, 8, 9), §8 (one line); `.claude/commands/`
+In: CLAUDE.md §4 (command list), §6 (steps 2, 3 and 9, and a new "Self-improvement" rules block), §8 (one
+line); `.claude/commands/`
 (`improve.md` new; `plan-packet`, `execute`, `verify-packet`, `review-packet`, `close-packet`, `lessons`,
 `sprint-status` updated); `.claude/agents/packet-reviewer.md`; `tasks/plans/_TEMPLATE.md`;
-`tasks/lessons.md` (statuses); records: P1 confirmation, decisions D12 and D16.
+`tasks/lessons.md` (statuses); records: P1 confirmation, decisions D12 and D16 (also added after review:
+D1–D3 dates, decisions M7 and M8, W1 in `tasks/sprint.md`).
 Out: product code; the two P1 master-plan proposals (Chan asked for an explanation first).
 
 ## Data contract
@@ -63,10 +67,13 @@ Out: product code; the two P1 master-plan proposals (Chan asked for an explanati
 | `test_claude_md_self_improvement_rules` | §6 has the capture, read and promote rules naming `tasks/lessons.md` and `/improve`; §4 lists `/improve`; §8 has the refusal-test line |
 | `test_template_has_lessons_and_revision_log` | `## Lessons applied` and `## Revision log` in `_TEMPLATE.md` |
 | `test_every_claude_lesson_has_a_status` | every bullet under "For Claude Code (Me)" starts with `[note]`, `[promoted → …]` or `[retired]` |
-| `test_p1_lessons_promoted_where_promised` | the four P1 lessons are promoted, and each destination file contains the rule |
-| `test_reviewer_checks_lessons_and_commit_claims` | reviewer prompt names `tasks/lessons.md`, repeat = should-fix, commit-message approval check, refusal-test check |
-| `test_plan_packet_reads_lessons_and_stops_again` | `/plan-packet` reads lessons, fills "Lessons applied", stops again after any revision |
-| `test_execute_records_each_gate_test_failing_first` | `/execute` requires each gate test's first-run result |
+| `test_p1_lessons_promoted_where_promised` | four P1 lessons promoted, one note; destinations hold the rule: "stop again" in `/plan-packet` (already true on main), per-test first run in `/execute`, real-repository and commit-message checks in the reviewer, refusal line in CLAUDE.md §8 |
+| `test_reviewer_checks_lessons_and_commit_claims` | reviewer prompt names `tasks/lessons.md`, "Lessons applied", repeat = should-fix |
+| `test_plan_packet_reads_lessons_and_stops_again` | `/plan-packet` reads lessons, fills "Lessons applied" and "Revision log", stops again after any revision |
+| `test_execute_records_each_gate_test_failing_first` | `/execute` requires each gate test's first-run result and flags a test that passes before the code |
+| `test_corrections_capture_lessons_immediately` (2 cases) | `/verify-packet` and `/review-packet` write lessons when a correction happens |
+| `test_improve_and_sprint_status_handle_promotion_and_repeats` | `/improve` covers note, promote, retire and CLAUDE.md consent; `/sprint-status` reports repeats from `tasks/lessons.md`; `/close-packet` calls for `/improve` |
+Not covered: the text of `.claude/commands/lessons.md` itself (only the lessons data file is checked).
 
 ## Depends on
 Decisions: none. Packets: P1 (merged).
@@ -76,17 +83,30 @@ Process overhead: `/improve` adds a few minutes per packet; promotions keep the 
 mistakes. Rollback: revert the branch.
 
 ## Lessons applied
-- [P1] Stop again after revising a plan: this plan records the approved proposal verbatim; anything
-  beyond it will stop for Chan.
-- [P1] Never claim approval beyond what is on record: commit messages cite "Chan, chat 16:26".
+- [P1, promoted] Stop again after revising a plan: intended to apply by recording the approved proposal
+  verbatim. **Not applied in practice**: the plan was not shown to Chan before building (review round 1,
+  should-fix 1).
+- [P1, promoted] Never claim approval beyond what is on record: **not applied** to commit 055b55f's subject
+  (review round 1, should-fix 1).
+- [P1, promoted] Each gate test fails first for its own reason: applied; the one early pass is declared a
+  preservation check.
+- [Day 0] Do not shadow built-in command names: applied (`/improve` is not a built-in).
 
 ## Revision log
 | Date | Change | Stopped for Chan |
 |---|---|---|
-| 6 Nov 16:26 | Plan written from the approved proposal | — (approval given before the plan) |
+| 6 Nov 16:26 | Plan written from the approved proposal | no (approval given before the plan existed) |
+| 6 Nov (after review round 1) | Records corrected (scope, gate table, lessons applied); `/improve` test route and wording fixed; spec amendment proposed | yes: waiting for Chan |
 
 ## Reviewer Note
-<Chan>
+**Open for Chan (review round 1, should-fix 1 and 2):**
+1. Confirm this plan and the exact CLAUDE.md diff on this branch (§4 command list; §6 steps 2, 3 and 9;
+   the new "Self-improvement" block; §8 refusal-test line), or name the lines to revert. Only the §8 line
+   was named in the approved proposal.
+2. Also consent (or not) to one more CLAUDE.md line the review found stale: §6 step 4 "Paste the failure
+   summary" → "Paste each gate test's first-run result (flag any test that passed before the code)".
+3. Approve the proposed spec amendment below (the W1 gate stops pinning exact counts).
+Record: Chan's go-ahead for W1 not yet given for the plan itself.
 
 ## Gate — first run
 6 Nov, before any change: 11 failed, 1 passed. Each failure is the missing rule or file it tests
@@ -97,7 +117,20 @@ Passed before the change, on purpose: `test_review_agents_cannot_edit` is a pres
 independent agents must stay read-only through this packet), not new behaviour.
 
 ## Spec amendment
-<none>
+**Proposed after review round 1; awaiting Chan's OK. The gate is not changed until then.**
+- `test_p1_lessons_promoted_where_promised`: replace the exact counts (4 promoted, 1 note) with: each of
+  the four named P1 lessons carries a status, and each destination contains its rule. Why: `/improve`
+  exists to change statuses; exact counts would turn the suite RED on every legitimate re-sort.
+- `test_every_command_has_frontmatter_and_improve_exists`: `EXPECTED_COMMANDS <= found` instead of
+  equality. Why: a later packet adding a command must not break W1's gate.
 
 ## Results
-<filled at step 9>
+<filled at close, after Chan's answers>
+
+Notes for the record so far:
+- Commit 055b55f's subject ("approved by Chan in chat 16:26: 'Go ahead'") overstates the approval: Chan
+  approved the chat proposal, not this plan. History is not rewritten.
+- The gate was committed together with the plan (055b55f), and W1.3 and W1.4 share a commit (e359adb);
+  the loop asks for separate commits.
+- W1.5 back-filled "(source: …)" on every older lesson as a one-off migration; afterwards only status
+  tags change.
