@@ -54,6 +54,13 @@ def _require_existing(url: Optional[str]) -> None:
         raise FileNotFoundError(f"No database at {path}")
 
 
+def _prepare_sqlite(connection) -> None:
+    driver = connection.connection.driver_connection
+    driver.isolation_level = None                    # pysqlite: no transactions of its own...
+    event.listen(connection, "begin", _sqlite_begin)  # ...so BEGIN comes first and covers the DDL
+    driver.execute("PRAGMA foreign_keys=OFF")          # only takes effect outside a transaction
+
+
 def _run(command_fn, url: Optional[str], revision: str, *, script_location: str = SCRIPT_LOCATION) -> None:
     cfg = _config(script_location)
     engine = get_engine(url)
@@ -61,10 +68,7 @@ def _run(command_fn, url: Optional[str], revision: str, *, script_location: str 
     with engine.connect() as connection:
         try:
             if sqlite:   # inside the try: if any of this fails, the connection is still discarded
-                driver = connection.connection.driver_connection
-                driver.isolation_level = None                    # pysqlite: no transactions of its own...
-                event.listen(connection, "begin", _sqlite_begin)  # ...so BEGIN comes first and covers DDL
-                driver.execute("PRAGMA foreign_keys=OFF")          # only takes effect outside a transaction
+                _prepare_sqlite(connection)
             with connection.begin():
                 cfg.attributes["connection"] = connection
                 command_fn(cfg, revision)

@@ -847,9 +847,10 @@ def test_a_failed_migration_setup_returns_no_changed_connection(db_url, tmp_path
     from bizwave_preloi.db import migrate
     from bizwave_preloi.db.session import get_engine
 
-    def broken_listen(*args, **kwargs):
+    def broken_setup(connection):              # changes the connection, then fails part-way
+        connection.connection.driver_connection.isolation_level = None
         raise RuntimeError("setup failed")
-    monkeypatch.setattr(migrate.event, "listen", broken_listen)
+    monkeypatch.setattr(migrate, "_prepare_sqlite", broken_setup)
     with pytest.raises(RuntimeError, match="setup failed"):
         migrate._run(command.upgrade, db_url, "head", script_location=_trial_scripts(tmp_path, REBUILD_DEALS))
     raw = get_engine(db_url).pool.connect()
@@ -857,3 +858,35 @@ def test_a_failed_migration_setup_returns_no_changed_connection(db_url, tmp_path
         assert raw.driver_connection.isolation_level == ""         # the changed connection was discarded
     finally:
         raw.close()
+
+
+# --------------------------------------------------------------------------- focused review (round 4) nits
+
+def test_a_stale_held_deal_with_an_unsaved_edit_still_gives_invalid_transition(db_url):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+    from bizwave_preloi.db.status import InvalidTransition
+
+    with session_scope(db_url) as s:
+        _deal_at(s, ["awaiting_documents", "on_hold"])
+    with pytest.raises(InvalidTransition, match="changed by someone else"):
+        with session_scope(db_url) as a:
+            held = a.get(repo.Deal, "acme-hvac")
+            held.industry = "HVAC services"                          # an edit not yet flushed
+            with session_scope(db_url) as b:
+                repo.transition(b, "acme-hvac", "awaiting_documents", by="b")
+            repo.transition(a, "acme-hvac", "awaiting_documents", by="a")
+    with session_scope(db_url) as s:
+        deal = s.get(repo.Deal, "acme-hvac")
+        assert (deal.status, deal.industry) == ("awaiting_documents", None)
+
+
+def test_alembic_called_directly_is_refused_and_the_live_database_kept():
+    from alembic import command
+
+    from bizwave_preloi.db import migrate
+
+    _live_deal()
+    with pytest.raises(RuntimeError, match="bizwave_preloi.db.migrate"):
+        command.downgrade(migrate._config(), "base")
+    assert _live_deals() == 1

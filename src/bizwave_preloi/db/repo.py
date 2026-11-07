@@ -93,25 +93,25 @@ def create_deal(s: Session, *, deal_id: str, customer_id: int, tier: str, by: st
 
 def transition(s: Session, deal_id: str, to_status: str, *, by: str, detail: Optional[str] = None,
                at: Optional[datetime] = None) -> Deal:
-    deal = s.get(Deal, deal_id)
-    if deal is None:
-        raise ValueError(f"No deal {deal_id!r}")
-    check(deal.status, to_status, held_from=_held_from(s, deal))   # InvalidTransition; nothing written
-    by, when = _who(by), _now(at)
-    s.add(DealEvent(deal_id=deal_id, at=when, kind="status_change", from_status=deal.status,
-                    to_status=to_status, by=by, detail=detail))
-    if to_status == "ready" and deal.package_complete_at is None:
-        deal.package_complete_at = when        # the SLA clock starts the first time only
-    if to_status == "delivered":
-        deal.delivered_at = when
-    read_status = deal.status
-    deal.status = to_status
-    deal.updated_at = when
-    try:
+    try:   # a stale deal in this session can surface at any flush here, including the autoflush on read
+        deal = s.get(Deal, deal_id)
+        if deal is None:
+            raise ValueError(f"No deal {deal_id!r}")
+        check(deal.status, to_status, held_from=_held_from(s, deal))   # InvalidTransition; nothing written
+        by, when = _who(by), _now(at)
+        s.add(DealEvent(deal_id=deal_id, at=when, kind="status_change", from_status=deal.status,
+                        to_status=to_status, by=by, detail=detail))
+        if to_status == "ready" and deal.package_complete_at is None:
+            deal.package_complete_at = when        # the SLA clock starts the first time only
+        if to_status == "delivered":
+            deal.delivered_at = when
+        deal.status = to_status
+        deal.updated_at = when
         s.flush()     # the UPDATE matches only if the deal still has the status read (models.Deal)
     except StaleDataError:
-        raise InvalidTransition(f"Deal {deal_id!r} was changed by someone else after it was read (it was "
-                                f"'{read_status}'); nothing was written. Reload it and try again.") from None
+        raise InvalidTransition(f"A deal in this session was changed by someone else after it was read "
+                                f"(while moving {deal_id!r} to '{to_status}'). Nothing was written and the "
+                                f"session must be rolled back; reload and try again.") from None
     return deal
 
 

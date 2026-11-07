@@ -21,8 +21,8 @@ if context.is_offline_mode():
 
 connection = config.attributes.get("connection")
 if connection is None:
-    from bizwave_preloi.db.session import get_engine
-    with get_engine(config.get_main_option("sqlalchemy.url") or None).begin() as conn:
-        _run(conn)
-else:
-    _run(connection)
+    # Calling Alembic directly would fall back to the data folder's (live) database and skip the
+    # safeguards in migrate.py (a named database for downgrade; one transaction; foreign-key check).
+    raise RuntimeError("Run migrations through bizwave_preloi.db.migrate (upgrade, downgrade) or "
+                       "`python -m bizwave_preloi.db`, not Alembic directly.")
+_run(connection)

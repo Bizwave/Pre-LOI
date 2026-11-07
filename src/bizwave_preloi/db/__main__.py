@@ -17,7 +17,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m bizwave_preloi.db",
                                      description="Create, update or inspect the BizWave database schema.")
     parser.add_argument("action", choices=["upgrade", "downgrade", "current"])
-    parser.add_argument("--url", default=None, help="database URL (default: the data folder's database)")
+    parser.add_argument("--url", default=None, help="database URL; upgrade and current default to the data "
+                        "folder's database, downgrade requires it")
     parser.add_argument("target", nargs="?", default=None,
                         help='target revision (upgrade default "head", downgrade default "-1", "base" = empty)')
     parser.add_argument("--revision", default=None, help="the same as the positional target")
