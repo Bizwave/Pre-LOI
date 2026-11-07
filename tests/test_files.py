@@ -30,12 +30,64 @@ def test_place_without_hard_links_never_replaces(tmp_path, monkeypatch):
     folder = tmp_path / "usb"
     folder.mkdir()
     (folder / "taken.db").write_bytes(b"old snapshot")
-    temp = filestore.new_temporary(folder, "x.db")
+    temp = filestore.new_temporary(folder)
     temp.write_bytes(b"new snapshot")
     assert filestore.place(temp, folder / "taken.db") is False
     assert (folder / "taken.db").read_bytes() == b"old snapshot"
     assert filestore.place(temp, folder / "free.db") is True
     assert (folder / "free.db").read_bytes() == b"new snapshot" and not temp.exists()
+
+
+def test_place_without_hard_links_on_windows_renames_without_reserving(tmp_path, monkeypatch):
+    """On Windows the fallback is a rename, which refuses an existing name: no empty reservation can be left
+    under the real name if the run dies (P3 review round 2, nit 4). Windows' rename is simulated here."""
+    def no_links(src, dst):
+        raise OSError(1, "Incorrect function")       # what FAT/exFAT gives on Windows
+    renames = []
+
+    def windows_rename(src, dst):
+        renames.append(dst)
+        if os.path.exists(dst):
+            raise FileExistsError(17, "Cannot create a file when that file already exists", str(dst))
+        os.replace(src, dst)
+    monkeypatch.setattr(filestore.os, "link", no_links)
+    monkeypatch.setattr(filestore.os, "rename", windows_rename)
+    monkeypatch.setattr(filestore, "_WINDOWS", True)
+    folder = tmp_path / "usb"
+    folder.mkdir()
+    (folder / "taken.db").write_bytes(b"old snapshot")
+    temp = filestore.new_temporary(folder)
+    temp.write_bytes(b"new snapshot")
+    assert filestore.place(temp, folder / "taken.db") is False
+    assert (folder / "taken.db").read_bytes() == b"old snapshot" and temp.exists()
+    assert filestore.place(temp, folder / "free.db") is True
+    assert (folder / "free.db").read_bytes() == b"new snapshot" and not temp.exists()
+    assert renames == [folder / "taken.db", folder / "free.db"]
+
+
+def test_place_first_takes_the_first_free_name_and_cleans_up(tmp_path):
+    folder = tmp_path / "f"
+    folder.mkdir()
+    (folder / "a.db").write_bytes(b"old")
+    temp = filestore.new_temporary(folder)
+    temp.write_bytes(b"new")
+    assert filestore.place_first(temp, [folder / "a.db", folder / "b.db"]) == folder / "b.db"
+    temp = filestore.new_temporary(folder)
+    with pytest.raises(FileExistsError):
+        filestore.place_first(temp, [folder / "a.db", folder / "b.db"])
+    assert sorted(p.name for p in folder.iterdir()) == ["a.db", "b.db"]       # the temporary file is gone
+
+
+def test_a_long_file_name_fits(tmp_path):
+    """The temporary name is short: a long final name that the disk accepts never fails on it (nit 5)."""
+    name = "c" * 236 + ".pdf"                         # 240 characters; the old temporary name was 258
+    source = tmp_path / "in" / name
+    source.parent.mkdir()
+    source.write_bytes(b"x")
+    folder = tmp_path / "out"
+    temp, _ = filestore.copy_to_temporary(source, folder)
+    assert len(temp.name) == len(".bw-0123abcd.partial")
+    assert filestore.place(temp, folder / name) and (folder / name).read_bytes() == b"x"
 
 
 def test_a_failed_copy_removes_its_temporary_file(tmp_path, monkeypatch):
@@ -52,8 +104,9 @@ def test_a_failed_copy_removes_its_temporary_file(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("name, temporary", [
-    (".cim.pdf.0123abcd.partial", True), (".bizwave.db.89abcdef.partial", True),
-    ("cim.pdf.partial", False), (".cim.pdf", False), ("cim.pdf", False), (".cim.pdf.0123ABCD.partial", False),
+    (".bw-0123abcd.partial", True), (".bw-89abcdef.partial", True),
+    ("bw-0123abcd.partial", False), (".bw-0123ABCD.partial", False), (".bw-0123abcd.partial.pdf", False),
+    (".cim.pdf.0123abcd.partial", False), ("cim.pdf", False),
 ])
 def test_is_temporary(name, temporary):
     assert filestore.is_temporary(name) is temporary

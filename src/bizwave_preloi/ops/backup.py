@@ -53,7 +53,7 @@ def _snapshot(folder: Path, url: Optional[str], label: str, s: Settings) -> Path
     if database_file(url if url is not None else s.database_url) is None:
         raise NotImplementedError("Only SQLite databases can be backed up here (Postgres: use pg_dump).")
     target_folder = folder / "database"
-    temp = filestore.new_temporary(target_folder, "bizwave.db")
+    temp = filestore.new_temporary(target_folder)
     try:
         source = get_engine(url).raw_connection()
         try:
@@ -69,17 +69,13 @@ def _snapshot(folder: Path, url: Optional[str], label: str, s: Settings) -> Path
                 copy_engine.dispose()
         finally:
             source.close()
-        stamp = utcnow().strftime("%Y%m%d-%H%M%S")
-        suffix = f"-{label}" if label else ""
-        for n in count(1):
-            final = target_folder / f"bizwave-{stamp}{'' if n == 1 else f'-{n}'}{suffix}.db"
-            if filestore.place(temp, final):
-                temp = None
-                return final
-    finally:
-        if temp is not None:
-            filestore.discard(temp)
-    raise AssertionError("unreachable")
+    except BaseException:
+        filestore.discard(temp)
+        raise
+    stamp = utcnow().strftime("%Y%m%d-%H%M%S")
+    suffix = f"-{label}" if label else ""
+    return filestore.place_first(temp, (target_folder / f"bizwave-{stamp}{'' if n == 1 else f'-{n}'}{suffix}.db"
+                                        for n in count(1)))
 
 
 def backup_database(dest: Optional[Path] = None, *, url: Optional[str] = None, label: str = "") -> Path:
@@ -134,14 +130,7 @@ def backup(dest: Optional[Path] = None) -> BackupResult:
                 unchanged += 1
                 continue
             temp, _ = filestore.copy_to_temporary(source, target.parent)
-            try:
-                for name in _names(target, stamp):
-                    if filestore.place(temp, name):
-                        temp = None
-                        break
-            finally:
-                if temp is not None:
-                    filestore.discard(temp)
+            filestore.place_first(temp, _names(target, stamp))
         except OSError as exc:
             problems.append(f"{relative.as_posix()}: {exc}")
             continue

@@ -164,6 +164,17 @@ def _inside(child: Path, parent: Path) -> bool:
     return c == p or c.startswith(p.rstrip(os.sep) + os.sep)
 
 
+def is_inside(child: Path, parent: Path) -> bool:
+    """`child` is `parent` or under it, compared after following links (case-folded where the disk ignores
+    case). Use this, never string or `==` comparison, for every location rule (P3)."""
+    return _inside(child, parent)
+
+
+def same_path(a: Path, b: Path) -> bool:
+    """`a` and `b` name the same place, after following links (case-folded where the disk ignores case)."""
+    return _real(a) == _real(b)
+
+
 def database_file(url: str) -> Optional[Path]:
     """The file of a SQLite database URL (absolute), or None for other databases and in-memory SQLite."""
     from sqlalchemy.engine import make_url
@@ -190,9 +201,10 @@ def check_database_location(path: Path, warn: bool = True) -> None:
 
 
 def check_backup_location(path: Path, s: Optional[Settings] = None) -> None:
-    """Refuse a backup folder inside the repository (it receives client files and the database) or inside
-    the deals folder (it would back itself up); warn when it is inside the data folder (same disk). A synced
-    folder is fine for backups (docs/tech-plan.md section 3). Creates nothing (P3)."""
+    """Refuse a backup folder inside the repository (it receives client files and the database), inside the
+    deals folder (it would back itself up) or containing it, e.g. the data folder itself (<backup>/deals
+    would be the live deals folder, so nothing would be copied); warn when it is inside the data folder (same
+    disk). A synced folder is fine for backups (docs/tech-plan.md section 3). Creates nothing (P3)."""
     s = s or settings()
     if REPO_ROOT is not None and _inside(path, REPO_ROOT):
         raise DataFolderError(
@@ -201,6 +213,10 @@ def check_backup_location(path: Path, s: Optional[Settings] = None) -> None:
     if _inside(path, s.deals_dir):
         raise DataFolderError(f"The backup folder {path} is inside the deals folder {s.deals_dir}; it would "
                               f"back itself up. Choose a folder outside it.")
+    if _inside(s.deals_dir, path):
+        raise DataFolderError(f"The backup folder {path} contains the deals folder {s.deals_dir}, so its "
+                              f"deals/ would be the originals and no copy would be made. Choose a folder "
+                              f"outside the data folder.")
     if _inside(path, s.data_dir):
         warnings.warn(
             f"The backup folder {path} is inside the data folder {s.data_dir}: the same disk as the originals. "

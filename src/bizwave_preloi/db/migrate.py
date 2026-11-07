@@ -95,7 +95,7 @@ def _backup_live_database_first(url: Optional[str], action: str, revision: str) 
     target = database_file(url if url is not None else settings().database_url)
     if live is None or target is None or not target.exists():
         return
-    if config._real(target) != config._real(live):     # links followed, case folded: the same file counts
+    if not config.same_path(target, live):             # links followed, case folded: the same file counts
         return
     if action == "upgrade":
         wanted = head_revision() if revision == "head" else revision

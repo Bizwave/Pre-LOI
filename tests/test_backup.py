@@ -140,7 +140,7 @@ def test_temporary_files_are_not_backed_up_and_problems_do_not_stop_it(live, tmp
 
     inputs = settings().deals_dir / "acme-hvac" / "inputs"
     inputs.mkdir(parents=True)
-    (inputs / ".cim.pdf.0123abcd.partial").write_bytes(b"half a copy")
+    (inputs / ".bw-0123abcd.partial").write_bytes(b"half a copy")
     (inputs / "a.pdf").write_bytes(b"first")
     (inputs / "b.pdf").write_bytes(b"second")
     real = filestore.copy_to_temporary
@@ -173,3 +173,17 @@ def test_the_live_database_reached_through_a_link_is_backed_up_first(tmp_path):
     downgrade("sqlite:///" + (link / "bizwave.db").as_posix(), "base")
     snapshots = list((settings().backup_dir / "database").glob("*-before-downgrade.db"))
     assert len(snapshots) == 1
+
+
+def test_a_backup_folder_containing_the_deals_folder_is_refused(live):
+    """`--to` the data folder would make <backup>/deals the originals: nothing would be copied (P3 review
+    round 2, should-fix 2)."""
+    from bizwave_preloi.ops.backup import backup
+
+    (settings().deals_dir / "acme-hvac" / "inputs").mkdir(parents=True)
+    (settings().deals_dir / "acme-hvac" / "inputs" / "cim.pdf").write_bytes(b"synthetic")
+    for folder in (settings().data_dir, settings().data_dir.parent):
+        with pytest.raises(DataFolderError, match="contains the deals folder"):
+            backup(folder)
+    assert not (settings().data_dir / "database").exists()
+    assert not (settings().data_dir.parent / "database").exists()
