@@ -13,15 +13,15 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   caught it after the fact. A mechanical check before building (proposed) is the stronger fix.
 
 ### For Claude Code (Me)
-- [note] A go-ahead given before a plan exists covers only the proposal text. Write the plan, show Chan
-  the plan and the exact CLAUDE.md diff, and wait; record the go-ahead with date and time in the
-  Reviewer Note before writing the gate. Repeat of promoted lessons (a) and (d).
-  (source: W1 review round 1, should-fix 1)
+- [promoted → tests/test_workflow.py go-ahead check, /execute, plan template] A go-ahead given before a
+  plan exists covers only the proposal text. Write the plan, show Chan the plan and the exact CLAUDE.md
+  diff, and wait; record the go-ahead with date and time in the Reviewer Note before writing the gate.
+  Repeat of promoted lessons (a) and (d). (source: W1 review round 1, should-fix 1)
 - [note] A gate must not pin state the loop is designed to change (exact lesson counts, the exact list of
   commands). Assert presence and destinations, not totals. (source: W1 review round 1, should-fix 2)
-- [note] `/improve` promotions to tests go in module test files (`tests/test_<module>.py`), never into an
-  existing gate without a spec amendment, and are committed separately. (source: W1 review round 1,
-  should-fix 3)
+- [promoted → /improve steps 2 and 5] `/improve` promotions to tests go in module test files
+  (`tests/test_<module>.py`), never into an existing gate without a spec amendment, and are committed
+  separately. (source: W1 review round 1, should-fix 3)
 
 ## P1 settings and data folder (2026-11-06, branch `p1-settings`)
 
