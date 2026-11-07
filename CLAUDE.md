@@ -69,6 +69,7 @@ pytest tests/plans/test_YYYY_MM_DD_<packet>.py -v   # one packet's gate
 pytest -m "not excel"              # skip the LibreOffice parity test
 python scripts/build_financeability_model.py   # rewrite models/financeability_model.xlsx
 python scripts/pdf_inventory.py   # which sample pages have a text layer (<data folder>/samples)
+python -m bizwave_preloi.db upgrade    # create or update the database (in the data folder)
 ```
 
 Slash commands for the packet loop (section 6), in `.claude/commands/`:
@@ -86,6 +87,7 @@ Windows: if LibreOffice is installed but not on PATH, set `SOFFICE` to the full 
 src/bizwave_preloi/
   schemas.py          data contracts (Statement, LineItem, SourceRef, AddBack, Flag, Deal)
   pl_ladder.py        P&L ladder, copied from the MVP (keep the two in step)
+  db/                 models, types, sessions, migrations (Alembic), repository functions
   rules/              *.yaml rules + loader that refuses malformed files
   finance/            amortization, SOP 8.1 financeability, Excel model builder
   validate/           footing checks
@@ -199,3 +201,8 @@ before relying on it. `docs/mvp-reuse-audit.md` lists what is worth copying and 
 - Tests of a refusal (data folder, run log, database inside the repository) must not be able to write into
   the real repository if the refusal breaks: point `config.REPO_ROOT` at a fake repository under the
   test's temp folder (see `tests/test_config.py`, `fake_repo`).
+- SQLite: foreign keys and WAL are switched on per connection in db/session.py; never open a raw
+  sqlite3 connection. Times are stored as UTC and must be timezone-aware. Decimals are stored as
+  text, so sum and compare them in Python, not in SQL.
+- Schema changes only through a new Alembic migration in db/migrations/versions/ (upgrade ->
+  downgrade -> upgrade tested); never create_all() outside tests.

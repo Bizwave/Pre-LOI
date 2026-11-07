@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import pytest
 
+from bizwave_preloi.db.session import dispose_engines
 from bizwave_preloi.llm import Reply
 from bizwave_preloi.ops import RunLog
 from bizwave_preloi.rules import reload
@@ -18,7 +19,8 @@ _CLEARED = ("ANTHROPIC_API_KEY", "BIZWAVE_NO_LLM", "BIZWAVE_LLM_DISABLED_USES", 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch, tmp_path):
     """Every test: a temporary data folder, .env loading off, Claude settings cleared, rules re-read
-    from disk, and os.environ restored exactly afterwards (python-dotenv writes into it)."""
+    from disk, database engines closed afterwards (so Windows can delete temporary database files), and
+    os.environ restored exactly afterwards (python-dotenv writes into it)."""
     saved = dict(os.environ)
     for name in _CLEARED:
         monkeypatch.delenv(name, raising=False)
@@ -26,9 +28,19 @@ def _isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("BIZWAVE_LOAD_DOTENV", "0")
     reload()
     yield
+    dispose_engines()
     reload()
     os.environ.clear()
     os.environ.update(saved)
+
+
+@pytest.fixture
+def db_url(tmp_path) -> str:
+    """A temporary SQLite database, migrated to the newest revision, for any test that needs one."""
+    from bizwave_preloi.db.migrate import upgrade
+    url = "sqlite:///" + (tmp_path / "test.db").as_posix()
+    upgrade(url)
+    return url
 
 
 @pytest.fixture

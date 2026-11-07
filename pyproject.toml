@@ -13,6 +13,8 @@ dependencies = [
     "openpyxl>=3.1",
     "pdfplumber>=0.11",
     "python-dotenv>=1.0",
+    "sqlalchemy>=2.0,<2.2",
+    "alembic>=1.13",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +27,7 @@ dev = ["pytest>=8", "reportlab>=4"]   # reportlab draws synthetic PDFs for inges
 where = ["src"]
 
 [tool.setuptools.package-data]
-bizwave_preloi = ["rules/*.yaml", "llm/prompts/*.md"]
+bizwave_preloi = ["rules/*.yaml", "llm/prompts/*.md", "db/migrations/*.mako", "db/migrations/*.py", "db/migrations/versions/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

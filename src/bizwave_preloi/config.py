@@ -7,10 +7,10 @@ from the environment itself; `Settings` only records whether one is present.)
     s.deals_dir, s.runlog_path, s.database_url, s.no_llm, s.llm_model ...
 
 Client files, the run log and the database live in a data folder OUTSIDE the repository, by default
-`~/BizWaveData` (`C:\\Users\\<you>\\BizWaveData` on Windows). A data folder or run log inside the
-repository is refused (paths are compared after following links); a data folder inside a OneDrive,
-Dropbox, Google Drive or iCloud folder is allowed with a warning, because a sync client can corrupt
-an open SQLite database (docs/tech-plan.md section 3). Relative paths are taken from the folder the
+`~/BizWaveData` (`C:\\Users\\<you>\\BizWaveData` on Windows). A data folder, run log or SQLite
+database file inside the repository is refused (paths are compared after following links); a data
+folder or database inside a OneDrive, Dropbox, Google Drive or iCloud folder is allowed with a warning,
+because a sync client can corrupt an open SQLite database (docs/tech-plan.md section 3). Relative paths are taken from the folder the
 command runs in, so prefer absolute paths in `.env`.
 
 A `.env` file in the repository folder is read once per process. It never overrides a variable
@@ -162,10 +162,35 @@ def _inside(child: Path, parent: Path) -> bool:
     return c == p or c.startswith(p.rstrip(os.sep) + os.sep)
 
 
+def database_file(url: str) -> Optional[Path]:
+    """The file of a SQLite database URL (absolute), or None for other databases and in-memory SQLite."""
+    from sqlalchemy.engine import make_url
+    parsed = make_url(url)
+    if not parsed.drivername.startswith("sqlite") or not parsed.database or parsed.database == ":memory:":
+        return None
+    return Path(os.path.abspath(parsed.database))
+
+
+def check_database_location(path: Path, warn: bool = True) -> None:
+    """Refuse a database file inside the repository (DataFolderError); warn when it sits in a synced
+    folder. Called before the file can be created (P2.7; Chan, P2 Q1)."""
+    if REPO_ROOT is not None and _inside(path, REPO_ROOT):
+        raise DataFolderError(
+            f"The database {path} is inside the repository {REPO_ROOT}. It holds client deals: set "
+            f"BIZWAVE_DATABASE_URL to a file outside the repository, or leave it empty to use "
+            f"<data folder>/bizwave.db.")
+    synced = _synced_folder(path)
+    if warn and synced:
+        warnings.warn(
+            f"The database {path} is inside a synced folder ('{synced}'). Sync can corrupt an open SQLite "
+            f"file and its -wal/-shm companions; keep it outside and back it up into the synced folder "
+            f"instead.", UserWarning, stacklevel=3)
+
+
 def ensure_data_dirs(s: Optional[Settings] = None) -> Settings:
-    """Check where the data folder and run log are, then create the data folder with deals/ and
-    samples/ (safe to repeat). Raises DataFolderError, before creating anything, when either is
-    inside the repository."""
+    """Check where the data folder, run log and SQLite database are, then create the data folder with
+    deals/ and samples/ (safe to repeat). Raises DataFolderError, before creating anything, when any of
+    them is inside the repository."""
     s = s or settings()
     if REPO_ROOT is not None:
         if _inside(s.data_dir, REPO_ROOT):
@@ -178,7 +203,10 @@ def ensure_data_dirs(s: Optional[Settings] = None) -> Settings:
                 f"The run log {s.runlog_path} is inside the repository {REPO_ROOT}. It holds model "
                 f"outputs for client deals: set BIZWAVE_RUNLOG to a path outside the repository, or "
                 f"leave it empty to use <data folder>/runlog.jsonl.")
+    db_file = database_file(s.database_url)
     synced = _synced_folder(s.data_dir)
+    if db_file is not None:
+        check_database_location(db_file, warn=synced is None)   # one sync warning is enough
     if synced:
         warnings.warn(
             f"The data folder {s.data_dir} is inside a synced folder ('{synced}'). Keep the database "
