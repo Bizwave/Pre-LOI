@@ -13,7 +13,7 @@ from bizwave_preloi.ops import RunLog
 from bizwave_preloi.rules import reload
 
 _CLEARED = ("ANTHROPIC_API_KEY", "BIZWAVE_NO_LLM", "BIZWAVE_LLM_DISABLED_USES", "BIZWAVE_LLM_MODEL",
-            "BIZWAVE_RUNLOG", "BIZWAVE_DATABASE_URL")
+            "BIZWAVE_RUNLOG", "BIZWAVE_DATABASE_URL", "BIZWAVE_BACKUP_DIR")
 
 
 @pytest.fixture(autouse=True)
