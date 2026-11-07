@@ -21,6 +21,11 @@ work has started.
      **passes before** the code exists is flagged: either it is a deliberate preservation check (say so
      and why) or it is not testing the new behaviour and must be rewritten before committing;
    - paste the per-test summary under `## Gate — first run` in the plan;
+   - write every clarification made while writing the gate into the plan's Data contract in the gate
+     commit, never only into a note;
+   - a gate test whose first failure is a setup error (a module or command this packet adds) has not
+     shown it fails for its own reason: after the build, break that behaviour in a scratch copy, run it,
+     and record the result under `## Gate — first run`;
    - commit the gate alone: `[Day N] P<n> gate`.
 3. **Build** each unchecked sub-packet in order:
    - implement only what the plan says;

@@ -24,7 +24,9 @@ copy outside it).
 
 Check
 1. **Plan:** every sub-packet done; nothing built outside scope; the data contract matches the code on
-   both sides, field for field.
+   both sides, field for field, including every behaviour added while writing the gate or in a correction
+   round (actions, refusals, status effects, exceptions); one missing from the contract is at least a
+   should-fix.
 2. **Every figure traces** (invariant 1): figures read from documents carry a SourceRef; computed
    figures come from code; no number originates in a Claude answer without being re-derived or footed.
 3. **Claude** (invariants 2, 3, 6): only through `llm.ask()` and registered uses; one batched call per
@@ -38,12 +40,18 @@ Check
 7. **Database:** migration upgrade → downgrade → upgrade tested; models Postgres-compatible; no raw SQL
    without a stated reason; foreign keys on.
 8. **Client data** (invariant 8): no client files, names or figures in the repo, tests or fixtures; data
-   written only under the data folder.
+   written only under the data folder. Every location rule (data folder, deals, backups, database, run
+   log, repository) is checked in both directions, inside it and containing it, with `config.is_inside` /
+   `config.same_path`, never `==` or string prefixes. Client files and snapshots are written only through
+   `ops/files.py`; nothing in a deal or backup folder is replaced or deleted.
 9. **Tests:** the gate asserts real values and covers error and edge paths; the gate file was not edited
    after its first commit unless the plan has a `## Spec amendment` for it
-   (`git log --follow -- tests/plans/<gate>`).
+   (`git log --follow -- tests/plans/<gate>`). Tests pin what must never change (constraint names,
+   formats, refusals), never what grows (counts of lessons, commands or rules; the newest migration).
 10. **Code:** small interfaces over deep modules; clear errors; copied MVP code carries its provenance
-    header; nothing dead or speculative left behind.
+    header; nothing dead or speculative left behind. In a batch, each item's error is that item's
+    problem: every exception the per-item step can raise, every earlier state of the item (missing,
+    changed), and an earlier item of the same run having failed; each case tested.
 11. **Lessons:** the plan's `## Lessons applied` covers the lessons in `tasks/lessons.md` that bear on this
     packet, and the code follows them. A repeat of a `[promoted → ...]` lesson is at least a
     should-fix; name the lesson.
