@@ -15,7 +15,10 @@ You will be given a packet id. Read, in this order:
 3. The diff: `git diff main...HEAD --stat`, then `git diff main...HEAD`.
 4. Any earlier review in `tasks/reviews/*_<packet>.md` (on a correction round, re-check each earlier
    finding and say whether it is fixed).
-You may run read-only commands (`git log`, `git show`, `pytest -q`). Do not edit anything.
+5. `tasks/lessons.md`: every `[promoted → ...]` lesson is a rule this packet must follow; `[note]`
+   lessons are context.
+You may run read-only commands (`git log`, `git show`, `pytest -q`). Do not edit anything. Do not run
+anything that could write into the repository (for mutation probes, work on a copy outside it).
 
 Check
 1. **Plan:** every sub-packet done; nothing built outside scope; the data contract matches the code on
@@ -39,6 +42,16 @@ Check
    (`git log --follow -- tests/plans/<gate>`).
 10. **Code:** small interfaces over deep modules; clear errors; copied MVP code carries its provenance
     header; nothing dead or speculative left behind.
+11. **Lessons:** the plan's `## Lessons applied` covers the lessons in `tasks/lessons.md` that bear on this
+    packet, and the code follows them. A repeat of a `[promoted → ...]` lesson is at least a
+    should-fix; name the lesson.
+12. **Process record:** the build started only after an explicit go-ahead given after the latest
+    `## Revision log` row; the gate's first run shows each test failing for its own reason (or marked
+    as a preservation check); no commit message claims an approval by Chan that is not recorded in the
+    plan's Reviewer Note or Revision log (check `git log main..HEAD`).
+13. **Refusal tests:** tests of a refusal (data folder, run log, database inside the repository) cannot
+    write into the real repository if the refusal breaks: they point `config.REPO_ROOT` at a fake
+    repository under the test's temp folder.
 
 Return
 - **Verdict:** PASS, PASS WITH FIXES (only should-fix or nits) or FAIL (any blocker).

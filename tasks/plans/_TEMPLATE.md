@@ -35,8 +35,17 @@ Decisions: <D-numbers from docs/decisions.md, or none> · Packets: <earlier pack
 ## Risks and rollback
 <what could go wrong; how to undo (e.g. alembic downgrade -1, revert branch)>
 
+## Lessons applied
+<Every lesson in tasks/lessons.md that bears on this packet (promoted ones first) and how this plan applies it.>
+- [<packet>] <lesson> → <how this plan applies it>
+
+## Revision log
+| Date | What changed | Stopped for Chan |
+|---|---|---|
+| YYYY-MM-DD HH:MM | Plan written | yes |
+
 ## Reviewer Note
-<Chan writes here. Claude answers each point below it and stops again.>
+<Chan writes here. Claude answers each point below it, adds a Revision log row, and stops again.>
 
 ## Gate — first run
 <short failure summary showing the gate fails for the right reason>
