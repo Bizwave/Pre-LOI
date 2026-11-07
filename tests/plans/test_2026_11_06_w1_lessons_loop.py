@@ -39,7 +39,8 @@ def _claude_md() -> str:
 
 def test_every_command_has_frontmatter_and_improve_exists():
     found = {p.stem for p in COMMANDS.glob("*.md")}
-    assert found == EXPECTED_COMMANDS
+    # Spec amendment (Chan 2026-11-06 16:52 PT, "c ok"): later packets may add commands.
+    assert EXPECTED_COMMANDS <= found, EXPECTED_COMMANDS - found
     for p in COMMANDS.glob("*.md"):
         meta, _ = _frontmatter(p)
         assert meta.get("description"), p.name
@@ -95,8 +96,13 @@ def test_p1_lessons_promoted_where_promised():
     p1 = text[text.index("## P1 settings and data folder"):]
     p1 = p1[: p1.index("\n## ", 5)]
     claude_part = p1[p1.index("### For Claude Code (Me)"):]
-    assert claude_part.count("[promoted → ") == 4
-    assert claude_part.count("[note]") == 1
+    # Spec amendment (Chan 2026-11-06 16:52 PT, "c ok"): no exact counts, because /improve exists to
+    # change statuses; each of the four named P1 lessons must still carry a status.
+    bullets = re.split(r"\n(?=- )", claude_part.split("\n", 1)[1].strip())
+    for phrase in ("STOP again", "commit message", "passes before the code", "Tests of a refusal"):
+        hits = [b for b in bullets if phrase.lower() in " ".join(b.split()).lower()]
+        assert len(hits) == 1, phrase
+        assert STATUS.match(hits[0]), hits[0][:80]
     plan_packet = (COMMANDS / "plan-packet.md").read_text(encoding="utf-8")
     execute = (COMMANDS / "execute.md").read_text(encoding="utf-8")
     reviewer = (AGENTS / "packet-reviewer.md").read_text(encoding="utf-8")

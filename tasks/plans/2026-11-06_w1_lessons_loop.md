@@ -62,7 +62,7 @@ Out: product code; the two P1 master-plan proposals (Chan asked for an explanati
 - [x] W1.6 Records: P1 confirmation (P1 plan), D12 and D16 made (`docs/decisions.md`)
 
 Corrections after review round 1, exactly as Chan approved them (Reviewer Note, b–e):
-- [ ] W1.7 Gate spec amendment (c)
+- [x] W1.7 Gate spec amendment (c)
 - [ ] W1.8 CLAUDE.md §6 step 4 line (b)
 - [ ] W1.9 Go-ahead check (d): `/execute`, plan template, new `tests/test_workflow.py`
 - [ ] W1.10 P1 plan: frozen exception (e); W1 lesson statuses
