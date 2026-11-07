@@ -512,3 +512,63 @@ def test_the_database_refuses_two_rows_for_one_path(db_url):
                 s.add(Document(deal_id="acme-hvac", filename="cim.pdf", kind="cim", sha256=digest,
                                size_bytes=1, stored_path="inputs/cim.pdf", received_at=utcnow()))
             s.flush()
+
+
+# --------------------------------------------------------------------------- four refusals (P2.10, Chan 17:59)
+
+def test_a_finished_run_keeps_its_record(db_url):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        run = repo.start_run(s, "acme-hvac")
+        s.flush()
+        repo.finish_run(s, run.id, status="failed", stages={"inventory": {}}, error="page 3 unreadable")
+        with pytest.raises(ValueError, match="already finished"):
+            repo.finish_run(s, run.id, status="succeeded", stages={})
+        assert (run.status, run.error) == ("failed", "page 3 unreadable")
+
+
+@pytest.mark.parametrize("text", ["NaN", "-Infinity", "Infinity", "sNaN"])
+def test_a_figure_must_be_a_finite_number(db_url, text):
+    from decimal import Decimal
+
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        with pytest.raises(ValueError, match="finite"):
+            repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan",
+                             asking_price=Decimal(text))
+    assert _deal_count(db_url) == 0
+
+
+def test_zero_pages_are_refused(db_url):
+    from bizwave_preloi import config
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    folder = config.settings().deals_dir / "acme-hvac"
+    folder.mkdir(parents=True)
+    (folder / "cim.pdf").write_bytes(b"%PDF-1.4 synthetic\n")
+    with session_scope(db_url) as s:
+        repo.create_deal(s, deal_id="acme-hvac", customer_id=_customer(s).id, tier="flash", by="chan")
+        doc = repo.add_document(s, "acme-hvac", folder / "cim.pdf", kind="cim")
+        s.flush()
+        with pytest.raises(ValueError, match="no pages"):
+            repo.record_pages(s, doc.id, [])
+        assert doc.page_count is None
+
+
+def test_current_on_a_missing_database_creates_nothing(tmp_path, capsys):
+    from bizwave_preloi.db.__main__ import main
+    from bizwave_preloi.db.migrate import current_revision
+
+    missing = tmp_path / "typo" / "bizwave.db"
+    url = "sqlite:///" + missing.as_posix()
+    with pytest.raises(FileNotFoundError, match="No database"):
+        current_revision(url)
+    assert main(["current", "--url", url]) == 1
+    assert "No database" in capsys.readouterr().err
+    assert not missing.exists() and not missing.parent.exists()

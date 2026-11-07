@@ -149,6 +149,9 @@ def record_pages(s: Session, document_id: int, pages: Iterable) -> List[Page]:
     document = s.get(Document, document_id)
     if document is None:
         raise ValueError(f"No document {document_id}")
+    pages = list(pages)
+    if not pages:
+        raise ValueError(f"Document {document_id}: no pages to record (a PDF has at least one page)")
     if s.scalar(sa.select(sa.func.count()).select_from(Page).where(Page.document_id == document_id)):
         raise ValueError(f"Document {document_id} already has pages recorded")
     rows = [Page(document_id=document_id, page_no=p.page, chars=p.chars, has_text_layer=p.has_text_layer,
@@ -203,5 +206,8 @@ def finish_run(s: Session, run_id: int, *, status: str, stages: Dict, error: Opt
     run = s.get(PipelineRun, run_id)
     if run is None:
         raise ValueError(f"No pipeline run {run_id}")
+    if run.status != "running":
+        raise ValueError(f"Pipeline run {run_id} already finished as {run.status!r}; its record is kept. "
+                         f"Start a new run instead.")
     run.status, run.stages, run.error, run.finished_at = status, dict(stages), error, utcnow()
     return run

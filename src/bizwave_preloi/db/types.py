@@ -49,13 +49,16 @@ class DecimalText(TypeDecorator):
 
 
 def check_decimal(value):
-    """None, or the text a Decimal or int is stored as. Floats are refused (invariant 1); so is anything
-    longer than the column (Postgres would refuse it, SQLite would quietly keep it)."""
+    """None, or the text a Decimal or int is stored as. Floats are refused (invariant 1); so are NaN and
+    Infinity, and anything longer than the column (Postgres would refuse it, SQLite would quietly keep it)."""
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (Decimal, int)):
         raise TypeError(f"DecimalText takes a Decimal or an int, not {type(value).__name__} ({value!r})")
-    text = str(Decimal(value))
+    number = Decimal(value)
+    if not number.is_finite():
+        raise ValueError(f"A figure must be a finite number, not {number}")
+    text = str(number)
     if len(text) > DECIMAL_TEXT_LENGTH:
         raise ValueError(f"{text[:20]}... is longer than {DECIMAL_TEXT_LENGTH} characters")
     return text

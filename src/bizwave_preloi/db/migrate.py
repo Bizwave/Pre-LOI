@@ -21,6 +21,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.migration import MigrationContext
 
+from ..config import database_file, settings
 from .session import get_engine
 
 SCRIPT_LOCATION = "bizwave_preloi.db:migrations"
@@ -70,5 +71,10 @@ def downgrade(url: Optional[str] = None, revision: str = "-1") -> None:
 
 
 def current_revision(url: Optional[str] = None) -> Optional[str]:
+    """The database's revision, or None for an empty database. A SQLite file that does not exist is
+    FileNotFoundError: looking must not create an empty database (e.g. at a mistyped path)."""
+    path = database_file(url if url is not None else settings().database_url)
+    if path is not None and not path.exists():
+        raise FileNotFoundError(f"No database at {path}")
     with get_engine(url).connect() as connection:
         return MigrationContext.configure(connection).get_current_revision()

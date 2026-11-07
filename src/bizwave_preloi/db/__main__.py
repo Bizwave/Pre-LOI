@@ -28,7 +28,11 @@ def main(argv=None) -> int:
         upgrade(args.url, revision or "head")
     elif args.action == "downgrade":
         downgrade(args.url, revision or "-1")
-    print(current_revision(args.url) or "(empty database)")
+    try:
+        print(current_revision(args.url) or "(empty database)")
+    except FileNotFoundError as error:
+        print(f"{error}. Check --url, or run `upgrade` to create it.", file=sys.stderr)
+        return 1
     return 0
 
 
