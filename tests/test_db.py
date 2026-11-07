@@ -695,3 +695,66 @@ def test_tier_and_kind_are_checked_on_entry(db_url, call, error):
             with pytest.raises(ValueError, match=error):
                 repo.add_document(s, "acme-hvac", folder / "cim.pdf", kind="teaser")
         assert not s.new
+
+
+# --------------------------------------------------------------------------- two moves of one deal (P2.11, Chan 19:00)
+# Review round 3, should-fix 1: transition() read the status and wrote it unguarded, so a session holding
+# a stale read could reopen a deal another session had just delivered.
+
+@pytest.mark.parametrize("before, b_moves, a_moves", [
+    (["awaiting_documents", "ready", "processing", "in_review", "approved"], "delivered", "in_review"),
+    (["awaiting_documents", "ready"], "processing", "processing"),     # both start the same run
+    (["awaiting_documents"], "cancelled", "ready"),
+])
+def test_a_stale_move_is_refused(db_url, before, b_moves, a_moves):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.models import DealEvent
+    from bizwave_preloi.db.session import session_scope
+    from bizwave_preloi.db.status import InvalidTransition
+
+    with session_scope(db_url) as s:
+        _deal_at(s, before)
+    with session_scope(db_url) as s:
+        events_before = s.query(DealEvent).count()
+    with pytest.raises(InvalidTransition, match="changed by someone else"):
+        with session_scope(db_url) as a:
+            held = a.get(repo.Deal, "acme-hvac")                                # A reads and keeps it,
+            assert held.status == before[-1]                                    # as a console or run would
+            with session_scope(db_url) as b:                                    # B moves it and commits
+                repo.transition(b, "acme-hvac", b_moves, by="b")
+            repo.transition(a, "acme-hvac", a_moves, by="a")                    # A's move is now stale
+    with session_scope(db_url) as s:
+        deal = s.get(repo.Deal, "acme-hvac")
+        assert deal.status == b_moves
+        events = s.query(DealEvent).order_by(DealEvent.id).all()
+        assert len(events) == events_before + 1 and events[-1].by == "b"        # A wrote nothing
+
+
+def test_a_fresh_move_after_another_still_works(db_url):
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        _deal_at(s, ["awaiting_documents", "ready"])
+    with session_scope(db_url) as b:
+        repo.transition(b, "acme-hvac", "processing", by="b")
+    with session_scope(db_url) as a:                                            # reads after B's commit
+        assert repo.transition(a, "acme-hvac", "in_review", by="a").status == "in_review"
+
+
+def test_other_deal_updates_check_the_status_too(db_url):
+    """The guard is on every update of a deal: a stale write of another field after a status change is
+    refused rather than silently based on an old read."""
+    import sqlalchemy as sa
+
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.db.session import session_scope
+
+    with session_scope(db_url) as s:
+        _deal_at(s, ["awaiting_documents"])
+    with pytest.raises(sa.orm.exc.StaleDataError):
+        with session_scope(db_url) as a:
+            deal = a.get(repo.Deal, "acme-hvac")
+            with session_scope(db_url) as b:
+                repo.transition(b, "acme-hvac", "ready", by="b")
+            deal.industry = "HVAC services"

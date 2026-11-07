@@ -72,6 +72,11 @@ class Deal(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
+    # Every UPDATE of a deal matches only if its status is still the one this session read; otherwise
+    # SQLAlchemy raises StaleDataError (repo.transition turns it into InvalidTransition). Two sessions can
+    # therefore never both move a deal from the same status (Chan, P2 review round 3, 2026-11-06).
+    __mapper_args__ = {"version_id_col": status, "version_id_generator": False}
+
 
 class DealEvent(Base):
     __tablename__ = "deal_events"

@@ -22,11 +22,12 @@ from typing import Dict, Iterable, List, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 
 from .. import config, rules
 from ..schemas import DEAL_ID_PATTERN
 from .models import Customer, Deal, DealEvent, Document, Page, PipelineRun
-from .status import check
+from .status import InvalidTransition, check
 from .types import check_aware, check_cents, check_decimal, utcnow
 
 DEAL_ID = re.compile(DEAL_ID_PATTERN)     # the same pattern as schemas.Deal.id; always use fullmatch
@@ -103,8 +104,14 @@ def transition(s: Session, deal_id: str, to_status: str, *, by: str, detail: Opt
         deal.package_complete_at = when        # the SLA clock starts the first time only
     if to_status == "delivered":
         deal.delivered_at = when
+    read_status = deal.status
     deal.status = to_status
     deal.updated_at = when
+    try:
+        s.flush()     # the UPDATE matches only if the deal still has the status read (models.Deal)
+    except StaleDataError:
+        raise InvalidTransition(f"Deal {deal_id!r} was changed by someone else after it was read (it was "
+                                f"'{read_status}'); nothing was written. Reload it and try again.") from None
     return deal
 
 
