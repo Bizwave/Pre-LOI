@@ -48,7 +48,7 @@ Out: product code; the two P1 master-plan proposals (Chan asked for an explanati
 
 ## Sub-packets
 - [x] W1.1 CLAUDE.md §4, §6, §8
-- [ ] W1.2 Commands: new `/improve`; updated `plan-packet`, `execute`, `verify-packet`, `review-packet`,
+- [x] W1.2 Commands: new `/improve`; updated `plan-packet`, `execute`, `verify-packet`, `review-packet`,
       `close-packet`, `lessons`, `sprint-status`
 - [ ] W1.3 Reviewer agent checklist
 - [ ] W1.4 Plan template sections
