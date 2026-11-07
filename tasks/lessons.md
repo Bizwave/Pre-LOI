@@ -4,6 +4,38 @@ Newest first. One entry per packet or session, written by `/lessons` at close an
 is found (CLAUDE.md section 6, "Self-improvement"). Every "For Claude Code (Me)" line carries a status set
 by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]`.
 
+## P2 database core (2026-11-06, branch `p2-database`)
+
+### For You (Chan)
+- The independent reviews earned their time three rounds running. Each found a real problem the tests
+  missed: database updates that would fail once deals exist; my fix for that, which stopped two writers
+  from waiting for each other; and an undo command that could empty the live database.
+- Run `pytest` on your Windows machine (Python 3.12) before merging P2: it is the first run of the
+  database file paths on Windows.
+- Until P3's backup command exists, copy `BizWaveData` before any manual database command, with nothing
+  running.
+
+### For Claude Code (Me)
+- [note] Work out every expected value in a gate by running it (`len(...)`), never by hand: the gate's
+  340 should have been 330. (source: P2 gate-runner RED during the build)
+- [note] Test database changes the way they will run: migrations over a database holding rows, through
+  a table rebuild; any change to transactions or the connection pool with two sessions at once; and
+  assert the thing claimed (a column only the migration changes). The round-1 fix disabled
+  busy_timeout, and undoing it reopened a lost-update race. (source: P2 review round 1 should-fix 1;
+  round 2 should-fixes 1 and 5; round 3 should-fix 1)
+- [note] Check inputs in the function that receives them and raise the contract's error type before
+  anything is written; match whole strings with `re.fullmatch` (`$` accepts a trailing newline).
+  (source: P2 review round 1, should-fixes 4 and 5)
+- [note] Pin what must never change (0001's constraint names, the naming convention), never what grows
+  (the newest migration revision). Same kind as W1's "do not pin state the loop changes", now in a
+  second packet: a promotion candidate for `/improve`. (source: P2 review round 1 should-fix 8; round 2
+  should-fixes 3 and 4)
+- [note] Run the suite on the Python version the tech plan names (3.12) as well as the container's
+  3.13: a CLI fix checked only on 3.13 still failed on 3.12. (source: P2 review round 2, should-fix 2)
+- [note] Look for destructive defaults and shortcut paths in anything touching the live database or the
+  deal flow: a bare `downgrade` emptied the live database, and `on_hold` skipped `ready`. (source: P2
+  review round 1 should-fix 2; round 3 should-fix 2)
+
 ## W1 self-improvement loop (2026-11-06, branch `w1-lessons-loop`)
 
 ### For You (Chan)
