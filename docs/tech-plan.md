@@ -157,15 +157,16 @@ the supportable column.
 
 | Command | Does |
 |---|---|
-| `bw new-deal --customer EMAIL --tier flash` | creates customer (if new) and deal; prints the code name |
-| `bw intake DEAL --from FOLDER` | copies files into the data folder, hashes them, runs the inventory, records documents and pages; reads the intake form answers (JSON or CSV export); marks `ready` and starts the SLA clock when payment and package are complete |
+| `bw new-deal --customer EMAIL --name NAME --tier flash [--code ID] [--pilot]` | creates customer (if new) and deal; prints the code name (generated, never a client's name); `--pilot` skips payment |
+| `bw paid DEAL` | records a payment by hand until Stripe (P15); starts the clock if a readable CIM is already in |
+| `bw intake DEAL --from FOLDER [--kind NAME=KIND]` | copies files into the data folder without ever overwriting one (a changed file under a taken name becomes `-v2`), hashes them, names their kind from `rules/intake.yaml`, runs the inventory, records documents and pages; marks `ready` and starts the SLA clock when the deal is paid (or a pilot) and has a CIM whose pages were read (P3). The intake form answers and AI consent are read in P4 |
 | `bw run DEAL [--no-llm] [--force]` | runs the pipeline |
 | `bw console` | starts the review console on localhost |
 | `bw finance DEAL` | prints the financeability result for the saved structure (useful on calls) |
 | `bw render DEAL` | renders memo, workbook and letter into `outputs/`, records `deliverables` |
 | `bw deliver DEAL` | marks sent, issues the credit, records the time |
-| `bw status` | open deals, status, SLA time left |
-| `bw backup` | SQLite backup plus data folder copy |
+| `bw status` | open deals, status, hours since the package was complete (time left on the SLA: P15) |
+| `bw backup` | SQLite backup snapshot plus new or changed deal files, into `BIZWAVE_BACKUP_DIR` (never deletes); also automatic before upgrading or undoing the live database (M11) |
 | `bw accuracy` | runs the pipeline on the ground-truth samples and prints the accuracy report |
 
 ### 6.2 Review console (Streamlit, localhost only)
@@ -205,6 +206,10 @@ classification, qualitative CIM flags, narrative drafting. Model `claude-sonnet-
 For page extraction, split the page into a one-page PDF (pypdf) and send it as a base64 `document`
 block, so the page number is known by construction.
 
+**Consent:** a deal whose buyer did not consent to AI-assisted processing on the intake form runs in
+no-LLM mode, whatever the global setting. P4 records the consent; P7 enforces it for every Claude call of
+that deal (M12).
+
 Cost: earlier BizWave analysis put API cost under 1% of revenue. The run log records tokens per call,
 so measure it on the first live reviews rather than estimating.
 
@@ -236,7 +241,7 @@ Each packet: plan doc in `tasks/plans/`, tests first, whole suite green, stop fo
 | Mon 9 | Non-code: 8–10 sample CIMs (redacted or public where possible), outreach, engagement letter | 3 | |
 | Tue 10 | Decisions D1–D3 (SOP text, earnings basis, lender views) | 2 | YAML statuses updated |
 | Tue 10 | Ground truth: hand-key 3 samples into `truth.yaml` (periods, lines, add-backs, pages) | 3 | |
-| Tue 10 | **P4 Financeability persisted:** `financeability_runs`, structure from the intake form, `bw finance` | 1 | |
+| Tue 10 | **P4 Financeability persisted:** `financeability_runs`, structure from the intake form, `bw finance`; the intake form answers and AI consent (moved from P3, M12) | 2 | |
 | Wed 11 | **P5 Statement reader:** words and tables from the text layer, period headings, line kinds, sections, parents, add-back schedule; `statements` and `addbacks` tables | 5 | synthetic PDFs read exactly, with page numbers |
 | Wed 11 | **P6 Claude page fallback:** one-page PDF to `ingest.page_extraction`, schema validation, no-LLM path | 2 | fake-transport tests; one live check on a scanned sample |
 | Thu 12 | **P7 Pipeline orchestrator:** `run_deal`, stage records, `footing_results`, `overrides` | 2 | `bw run` end to end on a synthetic deal |
