@@ -188,7 +188,7 @@ def test_a_leftover_temporary_file_is_ignored(deal, tmp_path):
     _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
     inputs = settings().deals_dir / deal / "inputs"
     inputs.mkdir(parents=True)
-    leftover = inputs / ".Project CIM.pdf.0123abcd.partial"       # a killed run's half copy
+    leftover = inputs / ".bw-0123abcd.partial"                    # a killed run's half copy
     leftover.write_bytes((folder / "Project CIM.pdf").read_bytes()[:500])
     result = intake(deal, folder, by="chan")
     assert [(f.action, f.stored_path) for f in result.files] == [("copied", "inputs/Project CIM.pdf")]
@@ -239,3 +239,95 @@ def test_office_lock_files_are_skipped(deal, tmp_path):
     _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
     (folder / "~$notes.xlsx").write_bytes(b"owner lock file")
     assert [f.source.name for f in intake(deal, folder, by="chan").files] == ["Project CIM.pdf"]
+
+
+# --------------------------------------------------------------------------- P3 review round 2
+
+def _documents(deal):
+    from bizwave_preloi.db.models import Document
+    from bizwave_preloi.db.session import session_scope
+    import sqlalchemy as sa
+    with session_scope() as s:
+        return {d.stored_path: (d.sha256, d.page_count) for d in
+                s.scalars(sa.select(Document).where(Document.deal_id == deal))}
+
+
+def test_a_missing_recorded_copy_is_restored_and_the_run_goes_on(deal, tmp_path):
+    """A recorded file deleted from the deal folder no longer stops intake: the buyer's identical file puts
+    it back (the bytes equal the record) and new files are recorded (P3 review round 2, should-fix 1)."""
+    from bizwave_preloi.ops import files as filestore
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
+    intake(deal, folder, by="chan")
+    before = _documents(deal)
+    stored = settings().deals_dir / deal / "inputs" / "Project CIM.pdf"
+    stored.unlink()
+    _pdf(folder / "Profit and Loss 2024.pdf", "Synthetic P&L")
+    result = intake(deal, folder, by="chan")
+    actions = {f.source.name: (f.action, f.problem) for f in result.files}
+    assert actions == {"Project CIM.pdf": ("restored", None), "Profit and Loss 2024.pdf": ("copied", None)}
+    assert filestore.sha256(stored) == before["inputs/Project CIM.pdf"][0]
+    after = _documents(deal)
+    assert after["inputs/Project CIM.pdf"] == before["inputs/Project CIM.pdf"] and len(after) == 2
+
+
+def test_a_changed_recorded_copy_is_reported_and_left_alone(deal, tmp_path):
+    """A recorded copy that no longer matches its record is possible damage: it is not touched, the file is
+    reported (exit 1 at the command line) and the other files are still recorded (should-fix 1)."""
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
+    intake(deal, folder, by="chan")
+    stored = settings().deals_dir / deal / "inputs" / "Project CIM.pdf"
+    stored.write_bytes(b"damaged")
+    _pdf(folder / "Profit and Loss 2024.pdf", "Synthetic P&L")
+    result = intake(deal, folder, by="chan")
+    by_name = {f.source.name: f for f in result.files}
+    cim = by_name["Project CIM.pdf"]
+    assert (cim.action, cim.stored_path, cim.pages) == ("already_recorded", "inputs/Project CIM.pdf", 1)
+    assert "no longer matches its record" in cim.problem and "Save the new file" not in cim.problem
+    assert stored.read_bytes() == b"damaged"                      # never overwritten
+    assert by_name["Profit and Loss 2024.pdf"].action == "copied"
+    assert len(_documents(deal)) == 2
+    assert not list(stored.parent.glob("Project CIM-v*"))         # no second copy of known content
+
+
+def test_a_refused_record_is_that_files_problem(deal, tmp_path, monkeypatch):
+    """A ValueError from the repository for one file does not roll back the others (should-fix 1)."""
+    from bizwave_preloi.db import repo
+    from bizwave_preloi.ops.intake import intake
+
+    folder = tmp_path / "in"
+    _pdf(folder / "Project CIM.pdf", "Confidential information memorandum, synthetic")
+    _pdf(folder / "odd.pdf", "a file the repository refuses (simulated)")
+    real = repo.add_document
+
+    def refuse_odd(s, deal_id, path, **kw):
+        if path.name == "odd.pdf":
+            raise ValueError("simulated refusal")
+        return real(s, deal_id, path, **kw)
+    monkeypatch.setattr(repo, "add_document", refuse_odd)
+    result = intake(deal, folder, by="chan")
+    by_name = {f.source.name: f for f in result.files}
+    assert by_name["odd.pdf"].action == "failed" and "simulated refusal" in by_name["odd.pdf"].problem
+    assert by_name["Project CIM.pdf"].action == "copied" and result.status_after == "ready"
+    assert list(_documents(deal)) == ["inputs/Project CIM.pdf"]
+
+
+def test_recorded_names_are_compared_as_the_disk_compares_them(deal, tmp_path, monkeypatch):
+    """On Windows and macOS "CIM.pdf" and "cim.pdf" are one name: a recorded name stays taken in any case
+    (P3 review round 2, nit 3; a case-insensitive disk is simulated through the key function)."""
+    from bizwave_preloi.ops import intake as intake_module
+
+    monkeypatch.setattr(intake_module, "_name_key", str.casefold)
+    folder = tmp_path / "in"
+    _pdf(folder / "CIM.pdf", "Confidential information memorandum, first")
+    intake_module.intake(deal, folder, by="chan")
+    (settings().deals_dir / deal / "inputs" / "CIM.pdf").unlink()           # lost from disk, still recorded
+    (folder / "CIM.pdf").unlink()
+    _pdf(folder / "cim.pdf", "Confidential information memorandum, a different file")
+    result = intake_module.intake(deal, folder, by="chan")
+    assert [(f.stored_path, f.action) for f in result.files] == [("inputs/cim-v2.pdf", "copied_as_new_version")]

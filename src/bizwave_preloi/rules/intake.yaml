@@ -20,8 +20,10 @@
 #   skip_prefixes   file-name beginnings never brought in ("~$": the lock file Word and Excel keep
 #                   beside an open document)
 #
-# Each pattern has a near-miss test in tests/test_rules.py (a name it must NOT match): "recast" must not
-# match inside "forecast", and an NDA titled "Confidential Information" is not a CIM.
+# Near-miss tests in tests/test_rules.py cover the patterns that once matched the wrong files: "recast" must
+# not match inside "forecast", and an NDA titled "Confidential Information" is not a CIM. Give every new or
+# changed pattern a name it must NOT match, too. Not handled yet: projections ("Forecast P&L", "Projected
+# Income Statement", "Budget") still get a statement kind; a draft exclusion row is a question for Chan.
 status: "draft"
 source: "P3: document kinds from file names; the CPA corrects with bw intake --kind"
 document_kinds:

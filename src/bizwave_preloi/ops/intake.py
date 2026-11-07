@@ -7,9 +7,14 @@ Files land in <data folder>/deals/<deal>/inputs/, keeping subfolders. A file is 
 the deal already has is not copied again, and a different file under a name already taken (on disk or in
 the deal's records) is saved as "<name>-v2<suffix>" (then -v3 ...). Each copy is written under a hidden
 temporary name and linked into place only when complete (ops/files.py), so a name never holds a partial or
-replaced file. Kinds come from rules/intake.yaml (file-name patterns) unless `kinds` names the file. PDFs
-are inventoried page by page. A file that cannot be read, copied or inventoried is reported in `problem`
-and the run goes on with the others.
+replaced file. Names are compared as the disk compares them (case-insensitive on Windows and macOS).
+Kinds come from rules/intake.yaml (file-name patterns) unless `kinds` names the file. PDFs are inventoried
+page by page. A file that cannot be read, copied, recorded or inventoried is reported in `problem` and the
+run goes on with the others.
+
+Content the deal already has is checked against its stored copy: a copy missing from the deal folder is
+put back from the buyer's identical file ("restored"); a copy that no longer matches its record (changed or
+damaged since intake) is left untouched and reported.
 
 The source folder must be the folder the buyer's files were delivered to: one inside, or containing, the
 data folder, the backup folder, the database, the run log or the repository is refused before anything is
@@ -20,6 +25,8 @@ pages were read (Chan, P3 Q3). `start_clock_if_complete` is shared with `bw paid
 """
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Set, Tuple
@@ -42,7 +49,8 @@ from . import files as filestore
 class IntakeFile:
     source: Path                 # as found under the source folder
     stored_path: Optional[str]   # relative to the deal folder, forward slashes: "inputs/cim.pdf"; None if failed
-    action: str                  # "copied" | "copied_as_new_version" | "recorded" | "already_recorded" | "failed"
+    action: str                  # "copied" | "copied_as_new_version" | "recorded" | "already_recorded"
+                                 # | "restored" | "failed"
     kind: str
     pages: Optional[int]         # pages recorded; None for a non-PDF, an unreadable PDF or a failed file
     problem: Optional[str]
@@ -61,9 +69,16 @@ class IntakeResult:
 class _Planned:
     source: Path
     relative: str                # under the source folder
+    sha: Optional[str]
     action: str
     target: Optional[Path]
     problem: Optional[str]
+
+
+def _name_key(relative: str) -> str:
+    """A stored name as the disk compares it: case-insensitive on Windows (normcase) and macOS."""
+    key = os.path.normcase(relative)
+    return key.casefold() if sys.platform == "darwin" else key
 
 
 def _source_files(source: Path) -> List[Tuple[Path, str]]:
@@ -86,18 +101,18 @@ def _check_source(source: Path) -> None:
     s = settings()
     if not source.is_dir():
         raise ValueError(f"{source} is not a folder. Give the folder the buyer's files are in.")
-    if config.REPO_ROOT is not None and config._inside(source, config.REPO_ROOT):
+    if config.REPO_ROOT is not None and config.is_inside(source, config.REPO_ROOT):
         raise ValueError(f"{source} is inside the repository {config.REPO_ROOT}; client files must never be "
                          f"there. Move them out first.")
     for label, folder in (("data folder", s.data_dir), ("backup folder", s.backup_dir)):
-        if config._inside(source, folder):
+        if config.is_inside(source, folder):
             raise ValueError(f"{source} is inside the {label} {folder}; intake copies files into the data "
                              f"folder. Give the folder the buyer's files were delivered to.")
     protected = (("the data folder", s.data_dir), ("the backup folder", s.backup_dir),
                  ("the database", database_file(s.database_url)), ("the run log", s.runlog_path),
                  ("the repository", config.REPO_ROOT))
     for label, path in protected:
-        if path is not None and config._inside(path, source):
+        if path is not None and config.is_inside(path, source):
             raise ValueError(f"{source} contains {label} ({path}); intake would copy it, and other deals' "
                              f"files, into this deal. Give the folder that holds only this buyer's files.")
 
@@ -138,12 +153,13 @@ def _names(target: Path) -> Iterator[Path]:
 
 def _store(source: Path, sha: str, target: Path, deal_folder: Path, taken: Set[str]) -> Tuple[Path, str]:
     """Put `source` (content `sha`, not yet recorded for the deal) under the first free name. A name is taken
-    when the deal's records use it or a different file is on disk there. A file already on disk with this
-    content (an interrupted run copied it but never recorded it) is used as it is: action "recorded"."""
+    when the deal's records use it (`taken` holds _name_key of each) or a different file is on disk there. A
+    file already on disk with this content (an interrupted run copied it but never recorded it) is used as it
+    is: action "recorded"."""
     temp = None
     try:
         for n, candidate in enumerate(_names(target)):
-            if candidate.relative_to(deal_folder).as_posix() in taken:
+            if _name_key(candidate.relative_to(deal_folder).as_posix()) in taken:
                 continue
             if candidate.exists() or candidate.is_symlink():
                 if candidate.is_file() and not candidate.is_symlink() and filestore.sha256(candidate) == sha:
@@ -195,49 +211,93 @@ def start_clock_if_complete(s: Session, deal_id: str, *, by: str) -> Tuple[str, 
     return deal.status, f"Files added to a deal already in '{deal.status}'; the clock is unchanged."
 
 
+def _matches(path: Path, sha: str) -> bool:
+    return path.is_file() and not path.is_symlink() and filestore.sha256(path) == sha
+
+
+def _known_content(source: Path, rel: str, sha: str, stored_path: str, deal_folder: Path) -> _Planned:
+    """Content the deal already has: check its stored copy. Intact -> "already_recorded". Missing -> put
+    back from the buyer's identical file -> "restored" (the name is free and the bytes equal the record, so
+    nothing is replaced). Changed or damaged -> left as it is and reported."""
+    stored = deal_folder / stored_path
+    changed = (f"the recorded copy {stored_path} no longer matches its record (changed or damaged in the deal "
+               f"folder since intake). The buyer's file still matches the record; nothing was changed. Check "
+               f"the deal folder.")
+    if _matches(stored, sha):
+        return _Planned(source, rel, sha, "already_recorded", stored, None)
+    if stored.exists() or stored.is_symlink():
+        return _Planned(source, rel, sha, "already_recorded", stored, changed)
+    try:
+        temp, copied = filestore.copy_to_temporary(source, stored.parent)
+        if copied != sha:
+            filestore.discard(temp)
+            raise OSError(f"{source.name} changed while it was being copied; run intake again")
+        if filestore.place(temp, stored):
+            return _Planned(source, rel, sha, "restored", stored, None)
+        filestore.discard(temp)                       # something took the name meanwhile: look again
+    except OSError as exc:
+        return _Planned(source, rel, sha, "already_recorded", stored,
+                        f"the recorded copy {stored_path} is missing from the deal folder and could not be "
+                        f"restored: {exc}")
+    if _matches(stored, sha):
+        return _Planned(source, rel, sha, "already_recorded", stored, None)
+    return _Planned(source, rel, sha, "already_recorded", stored, changed)
+
+
 def _plan(files: List[Tuple[Path, str]], deal_folder: Path, recorded: Dict[str, str]) -> List[_Planned]:
-    """Copy what is new (never overwriting); one file's error is its problem, not the run's."""
-    taken = set(recorded.values())
+    """Copy what is new (never overwriting) and check what is known; one file's error is its problem, not the
+    run's."""
+    taken = {_name_key(stored) for stored in recorded.values()}
     planned = []
     for path, rel in files:
         try:
             sha = filestore.sha256(path)
             if sha in recorded:
-                planned.append(_Planned(path, rel, "already_recorded", deal_folder / recorded[sha], None))
+                planned.append(_known_content(path, rel, sha, recorded[sha], deal_folder))
                 continue
             target, action = _store(path, sha, deal_folder / "inputs" / rel, deal_folder, taken)
         except OSError as exc:                       # unreadable (e.g. a cloud-only file), disk full ...
-            planned.append(_Planned(path, rel, "failed", None, f"could not be read or copied: {exc}"))
+            planned.append(_Planned(path, rel, None, "failed", None, f"could not be read or copied: {exc}"))
             continue
         stored = target.relative_to(deal_folder).as_posix()
         recorded[sha] = stored
-        taken.add(stored)
-        planned.append(_Planned(path, rel, action, target, None))
+        taken.add(_name_key(stored))
+        planned.append(_Planned(path, rel, sha, action, target, None))
     return planned
 
 
 def _record(s: Session, deal_id: str, item: _Planned, kind: str, override: Optional[str]) -> IntakeFile:
-    try:
-        document = repo.add_document(s, deal_id, item.target, kind=kind)    # existing row for known content
-        s.flush()
-    except OSError as exc:
+    """Record one planned file. Every repo call here checks its inputs before writing anything, so a refusal
+    (ValueError) or a read error (OSError) leaves the session as it was and is this file's problem only."""
+    def failed(problem: str) -> IntakeFile:
         return IntakeFile(source=item.source, stored_path=None, action="failed", kind=kind, pages=None,
-                          problem=f"copied but could not be read back: {exc}")
-    if override is not None and document.kind != override:
-        repo.set_document_kind(s, document.id, override)
-    problem = None
-    has_pages = s.scalar(sa.select(sa.func.count()).select_from(Page).where(Page.document_id == document.id))
-    if item.target.suffix.lower() == ".pdf" and not has_pages:
-        try:
-            pages = inventory(item.target)
-        except Exception as exc:                     # encrypted, damaged or not a PDF
-            problem = f"unreadable PDF (encrypted or damaged): {exc}"
+                          problem=problem)
+    try:
+        if item.action in ("already_recorded", "restored"):        # the row exists: never re-read the file
+            document = s.scalar(sa.select(Document).where(Document.deal_id == deal_id,
+                                                          Document.sha256 == item.sha))
         else:
-            if pages:
-                repo.record_pages(s, document.id, pages)
+            document = repo.add_document(s, deal_id, item.target, kind=kind)
+            s.flush()
+        if override is not None and document.kind != override:
+            repo.set_document_kind(s, document.id, override)
+        problem = item.problem
+        has_pages = s.scalar(sa.select(sa.func.count()).select_from(Page).where(Page.document_id == document.id))
+        if problem is None and item.target.suffix.lower() == ".pdf" and not has_pages:
+            try:
+                pages = inventory(item.target)
+            except Exception as exc:                 # encrypted, damaged or not a PDF
+                problem = f"unreadable PDF (encrypted or damaged): {exc}"
             else:
-                problem = "unreadable PDF: no pages"
-    s.flush()
+                if pages:
+                    repo.record_pages(s, document.id, pages)
+                else:
+                    problem = "unreadable PDF: no pages"
+        s.flush()
+    except OSError as exc:                           # the copy is on disk under its name; the next run records it
+        return failed(f"copied but could not be read back: {exc}")
+    except ValueError as exc:
+        return failed(f"could not be recorded: {exc}")
     return IntakeFile(source=item.source, stored_path=document.stored_path, action=item.action,
                       kind=document.kind, pages=document.page_count, problem=problem)
 
