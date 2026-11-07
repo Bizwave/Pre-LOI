@@ -1,6 +1,43 @@
 # Lessons
 
-Newest first. One entry per packet or session, written by `/lessons` (CLAUDE.md section 6, step 9).
+Newest first. One entry per packet or session, written by `/lessons` at close and the moment a mistake
+is found (CLAUDE.md section 6, "Self-improvement"). Every "For Claude Code (Me)" line carries a status set
+by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]`.
+
+## W1 self-improvement loop (2026-11-06, branch `w1-lessons-loop`)
+
+### For You (Chan)
+- A "go ahead" on a proposal in chat covers that proposal's words, not a plan written afterwards or
+  CLAUDE.md text you have not seen. Expect to be shown the plan and any CLAUDE.md diff before building.
+- Promoting a lesson to a checklist did not stop me repeating it in the very next packet; the reviewer
+  caught it after the fact. The mechanical go-ahead check (`/execute` and `tests/test_workflow.py`) is the
+  stronger fix.
+- A numbered "Yes" confirms the items asked, not the plan as I revise it afterwards. The cleanest sign-off
+  is a literal "go ahead" after I show you the final plan; the check now needs one recorded with its time.
+
+### For Claude Code (Me)
+- [promoted → tests/test_workflow.py go-ahead check, /execute, plan template] A go-ahead given before a
+  plan exists covers only the proposal text. Write the plan, show Chan the plan and the exact CLAUDE.md
+  diff, and wait; record the go-ahead with date and time in the Reviewer Note before writing the gate.
+  Repeat of promoted lessons (a) and (d). (source: W1 review round 1, should-fix 1)
+- [note] Tests of the loop itself: never pin state the loop is meant to change (exact lesson counts, the
+  exact command list); assert presence and destinations. And fail closed: when a check cannot find what
+  it reads (a heading, a date), it reports a problem instead of skipping the file. (source: W1 review
+  round 1, should-fix 2; round 2, should-fix 3)
+- [promoted → /improve steps 2 and 5] `/improve` promotions to tests go in module test files
+  (`tests/test_<module>.py`), never into an existing gate without a spec amendment, and are committed
+  separately. (source: W1 review round 1, should-fix 3)
+- [note] Every edit to a plan's Scope or Sub-packets gets a Revision log row, including edits that only
+  transcribe Chan's answers; the go-ahead check then forces the stop. Leaving the row out let W1 pass its
+  own check. Repeat of promoted lesson (a). (source: W1 review round 2, should-fix 1)
+- [note] Questions to Chan: show the exact text he is consenting to (for CLAUDE.md, the diff lines
+  themselves, never a summary), with my recommendation, what each option changes now and later, and what
+  could break; ask only what his rules reserve for him or what is genuinely his call. Record each
+  question and answer verbatim with times. (source: W1 review round 2, should-fix 2; round 3,
+  should-fix 1; Chan's correction 2026-11-06 17:29)
+- [note] When a record is corrected, re-check every commit message and status line (`tasks/sprint.md`)
+  that cited the old record, and note each overclaim in Results (no history rewrite). Repeat of promoted
+  lesson (d). (source: W1 review round 3, should-fix 2)
 
 ## P1 settings and data folder (2026-11-06, branch `p1-settings`)
 
@@ -15,16 +52,20 @@ Newest first. One entry per packet or session, written by `/lessons` (CLAUDE.md 
   `.claude/settings.json`; the default rule covers only `~/BizWaveData`.
 
 ### For Claude Code (Me)
-- After revising a plan in response to Chan's answers, STOP again before writing the gate, even for
-  small revisions. Record the stop.
-- Never write "approved by Chan" in a commit message beyond the exact text Chan approved.
-- A test that passes before the code exists is a warning sign: `test_runlog_defaults_to_data_folder`
-  passed early because the old code read the same variable. Check that each gate test fails first for
-  its own reason, not just that the file fails to import.
-- Tests of a refusal must not be able to write into the real repository if the refusal breaks: point
-  `config.REPO_ROOT` at a fake repository under the test's temp folder.
-- When a review fix changes the contract, update the plan's contract and spec amendment in the same
-  commit as the fix, so the record never lags the code.
+- [promoted → plan template Revision log, /plan-packet, CLAUDE.md §6 step 3] After revising a plan in
+  response to Chan's answers, STOP again before writing the gate, even for small revisions. Record the
+  stop. (source: P1 review round 1, should-fix 4)
+- [promoted → packet-reviewer checklist 12, /execute] Never write "approved by Chan" in a commit message
+  beyond the exact text Chan approved. (source: P1 review round 2, should-fix 2)
+- [promoted → /execute gate first run, packet-reviewer checklist 12] A test that passes before the code
+  exists is a warning sign: `test_runlog_defaults_to_data_folder` passed early because the old code read
+  the same variable. Check that each gate test fails first for its own reason, not just that the file
+  fails to import. (source: P1 build, implementer's observation)
+- [promoted → packet-reviewer checklist 13, CLAUDE.md §8] Tests of a refusal must not be able to write
+  into the real repository if the refusal breaks: point `config.REPO_ROOT` at a fake repository under the
+  test's temp folder. (source: P1 review round 2, nit)
+- [note] When a review fix changes the contract, update the plan's contract and spec amendment in the
+  same commit as the fix, so the record never lags the code. (source: P1 review round 2, should-fix 1)
 
 ## Day 0 — packet loop added to CLAUDE.md (2026-11-06, branch `day-0/packet-loop`)
 
@@ -35,8 +76,8 @@ Newest first. One entry per packet or session, written by `/lessons` (CLAUDE.md 
   and `packet-reviewer` (diff against plan and invariants). Their reports are evidence for your merge.
 
 ### For Claude Code (Me)
-- Name custom commands so they do not shadow built-ins: `/plan-packet`, `/review-packet`,
-  `/verify-packet`, `/sprint-status` rather than `/plan`, `/review`, `/status`.
+- [note] Name custom commands so they do not shadow built-ins: `/plan-packet`, `/review-packet`,
+  `/verify-packet`, `/sprint-status` rather than `/plan`, `/review`, `/status`. (source: Day 0 setup)
 
 ## Day 0 — scaffold (2026-11-06, branch `scaffold/day-0`)
 
@@ -47,11 +88,13 @@ Newest first. One entry per packet or session, written by `/lessons` (CLAUDE.md 
   so in their `status` / `verified_against_sop_text` fields, and results carry the caveat until then.
 
 ### For Claude Code (Me)
-- YAML 1.1 reads an unquoted `NO` as `false`. The category code for non-operating items broke the
-  rules loader on first run. Quote every category code; the loader and a test now catch it.
-- Apostrophes are dropped in normalization, so "wife's" becomes "wifes". Patterns must allow the
-  trailing `s` (`wifes?`, `owners?`, `spouses?`).
-- The scaffold's tests were written alongside the code, not before it. From P1 on, the gate comes
-  first (CLAUDE.md section 6, step 4).
-- A mutation check (changing one Excel formula) confirmed the parity test catches formula errors;
-  repeat that check whenever a new parity test is added.
+- [promoted → CLAUDE.md invariant 9, tests/test_rules.py] YAML 1.1 reads an unquoted `NO` as `false`.
+  The category code for non-operating items broke the rules loader on first run. Quote every category
+  code; the loader and a test now catch it. (source: scaffold first test run)
+- [promoted → tests/test_addback_classifier.py] Apostrophes are dropped in normalization, so "wife's"
+  becomes "wifes". Patterns must allow the trailing `s` (`wifes?`, `owners?`, `spouses?`).
+  (source: scaffold classifier tests)
+- [promoted → CLAUDE.md §6 step 4] The scaffold's tests were written alongside the code, not before
+  it. From P1 on, the gate comes first. (source: scaffold self-review)
+- [note] A mutation check (changing one Excel formula) confirmed the parity test catches formula
+  errors; repeat that check whenever a new parity test is added. (source: scaffold)

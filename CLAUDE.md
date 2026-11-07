@@ -73,7 +73,7 @@ python scripts/pdf_inventory.py   # which sample pages have a text layer (<data 
 
 Slash commands for the packet loop (section 6), in `.claude/commands/`:
 `/sprint-status`, `/research P<n>`, `/plan-packet P<n>`, `/execute P<n>`, `/verify-packet P<n>`,
-`/review-packet P<n>`, `/close-packet P<n>`, `/lessons`. Subagents in `.claude/agents/`:
+`/review-packet P<n>`, `/close-packet P<n>`, `/lessons`, `/improve`. Subagents in `.claude/agents/`:
 `gate-runner` (runs tests, reports raw results, never edits) and `packet-reviewer` (independent
 review against the plan and section 3, never edits).
 
@@ -120,18 +120,19 @@ P2.1 models, P2.2 migration, P2.3 repository layer).
 1. **Research** (`/research P<n>`). Read-only. Explore the code, rules, docs and, when copying, the
    MVP. Save `tasks/research/YYYY-MM-DD_<packet>.md` with a plain-language summary and risks.
    Light packets (planned at 1 hour or less) may skip this step.
-2. **Plan** (`/plan-packet P<n>`). Write `tasks/plans/YYYY-MM-DD_<packet>.md` from
-   `tasks/plans/_TEMPLATE.md`: goal, in and out of scope, the **data contract** (exact field names and
-   types both sides use), sub-packets as checkboxes, the gate tests by name, risks, rollback.
-   **STOP.**
-3. **Sign-off.** Chan adds `## Reviewer Note` in the plan; Claude revises and stops again. Build only
-   after an explicit message ("go ahead", "please execute", "implement it"). Approving plan mode
-   alone is not sign-off.
+2. **Plan** (`/plan-packet P<n>`). Read `tasks/lessons.md` first. Write `tasks/plans/YYYY-MM-DD_<packet>.md`
+   from `tasks/plans/_TEMPLATE.md`: goal, in and out of scope, the **data contract** (exact field names
+   and types both sides use), sub-packets as checkboxes, the gate tests by name, risks, rollback, and
+   **Lessons applied** (which lessons bear on this packet and how the plan applies them). **STOP.**
+3. **Sign-off.** Chan adds `## Reviewer Note` in the plan; Claude revises, logs the change in
+   `## Revision log`, and **stops again, after every revision, however small**. Answers to questions
+   are not sign-off of the revised plan. Build only after an explicit message ("go ahead", "please
+   execute", "implement it"). Approving plan mode alone is not sign-off.
 4. **Gate first.** Write `tests/plans/test_YYYY_MM_DD_<packet>.py` before any code. It carries the
    packet's regression duty: schema shape, happy path, error and edge paths, **real values** (dollars,
    counts, page numbers), behavior of direct consumers of anything changed, and a migration
    upgrade → downgrade → upgrade when a migration ships. Run it; it must fail for the right reason
-   (missing behavior, not a typo). Paste the failure summary into the plan under `## Gate — first run`.
+   (missing behavior, not a typo). Paste each gate test's first-run result (flag any test that passed before the code) into the plan under `## Gate — first run`.
    Commit the gate on its own (`[Day N] P<n> gate`).
 5. **Build** (`/execute P<n>`). Branch `p<n>-<topic>` from `main`. Implement sub-packets in order,
    tick each box the moment it is done, commit per sub-packet (`[Day N] P<n>.<k> short description`).
@@ -148,9 +149,9 @@ P2.1 models, P2.2 migration, P2.3 repository layer).
    run steps 6 and 7 again; the reviewer re-checks the earlier findings and the new diff. At most two
    correction rounds; if blockers remain, **STOP** and take it back to Chan as a plan problem.
 9. **Close** (`/close-packet P<n>`). Fill `## Results` in the plan (what changed, test counts,
-   deviations, review verdict), tick `tasks/sprint.md`, add lessons (`/lessons`), push the branch and
-   give Chan the pull-request link with a short summary. **STOP. Do not start the next packet** until
-   Chan names it.
+   deviations, review verdict), tick `tasks/sprint.md`, add lessons (`/lessons`), sort them
+   (`/improve`), push the branch and give Chan the pull-request link with a short summary. **STOP.
+   Do not start the next packet** until Chan names it.
 
 Rules that hold across the loop:
 - **Never edit a gate test to make it pass.** Fix the code. If the gate shows the *plan* was wrong,
@@ -165,6 +166,18 @@ Rules that hold across the loop:
   gate-runner verification and a commit message that says what and why.
 - **Run the whole suite** at step 6 every time; it takes seconds.
 - **Branches:** never commit to `main`; one branch and pull request per packet; Chan merges.
+
+Self-improvement (`tasks/lessons.md`, `/lessons`, `/improve`):
+- **Capture the moment a mistake is found:** gate-runner reports RED, the reviewer returns a finding at
+  should-fix or above, or Chan corrects Claude. Add the lesson then (`/lessons`), not only at close.
+- **Read before acting:** at session start and in every `/plan-packet`, read `tasks/lessons.md`; each
+  plan names the lessons it applies under `## Lessons applied`.
+- **Promote what matters:** `/improve` gives every lesson a status: `[note]`, `[promoted → <where>]` or
+  `[retired]`. A promotion moves the rule somewhere enforced (the reviewer checklist, a command step, the
+  plan template, a test). Edits to `.claude/` and the template need Chan's OK; edits to this file need his
+  explicit consent.
+- **Repeats escalate:** repeating a promoted lesson is at least a should-fix in review; the same kind of
+  finding in two packets is promoted (`/sprint-status` reports repeats).
 
 ## 7. Copying from the MVP
 
@@ -183,3 +196,6 @@ before relying on it. `docs/mvp-reuse-audit.md` lists what is worth copying and 
 - `rules/sba_sop_8_1.yaml` has `verified_against_sop_text: false` until Chan checks it; every
   financeability result carries that note until then.
 - The default Prime rate in the SBA file goes stale; a Flash Review uses the lender's quoted rate.
+- Tests of a refusal (data folder, run log, database inside the repository) must not be able to write into
+  the real repository if the refusal breaks: point `config.REPO_ROOT` at a fake repository under the
+  test's temp folder (see `tests/test_config.py`, `fake_repo`).
