@@ -1,7 +1,7 @@
 # 2026-11-06 — W1 Self-improvement loop (workflow packet)
 
-Status: **closed 2026-11-06** · go-ahead 17:29 PT · review round 3 PASS WITH FIXES · **merge only after
-Chan consents to the exact CLAUDE.md text on this branch, including b** (see Reviewer Note and Results).
+Status: **closed 2026-11-06** · go-ahead 17:29 PT · review round 3 PASS WITH FIXES · CLAUDE.md text
+consented 17:59 PT · **ready to merge** (before P2).
 Chan's "2. Go ahead" (chat, 16:26) approved the proposal below, not this plan, which was written afterwards.
 Branch: `w1-lessons-loop` · Gate: `tests/plans/test_2026_11_06_w1_lessons_loop.py` · Budget: 1 hour
 Research step skipped: light packet. Not one of P1–P15: a workflow packet ("W") before P2 so P2 uses it.
@@ -229,6 +229,13 @@ checks every plan, agreed / 3. go ahead / 4. yes approved" (4 is the P2 spec ame
 
 Go-ahead: 2026-11-06 17:29 PT (chat: "3. go ahead")
 
+**Consent to the exact CLAUDE.md text (review round 3, should-fix 1).** About 17:46 PT Claude showed in
+chat the full text this branch adds to CLAUDE.md (§4 command list; §6 steps 2, 3, 4 and 9; the
+"Self-improvement" block; the §8 refusal-test line, as in `git diff main...w1-lessons-loop -- CLAUDE.md`),
+with what it changes, and three options for the step 4 line, asking for: "CLAUDE.md W1 ok as shown, b
+keep". Chan, 2026-11-06 17:59 PT (chat), verbatim: "1. CLAUDE.md W1 ok as shown, b keep". The step 4
+line stays as applied in 4c9c1b3; no CLAUDE.md line is reverted.
+
 ## Gate — first run
 6 Nov, before any change: 11 failed, 1 passed. Each failure is the missing rule or file it tests
 (`improve.md` missing; no self-improvement rules in CLAUDE.md; no template sections; lessons without
@@ -269,8 +276,8 @@ and the code and record nits are fixed below; should-fix 1 (exact-text consent t
 and blocks the merge. Reports: `tasks/reviews/2026-11-06_w1_lessons_loop.md`.
 
 **Before merge (Chan):** consent to the exact `git diff main...w1-lessons-loop -- CLAUDE.md` (5 hunks),
-including the wording of the §6 step 4 line (b). If any line is not consented, it is reverted to main's
-text in its own commit before merge. Merge W1 before P2; P2 is then rebased, and the two §8 additions
+including the wording of the §6 step 4 line (b): **given 2026-11-06 17:59 PT** ("CLAUDE.md W1 ok as
+shown, b keep"; see Reviewer Note). Merge W1 before P2; P2 is then rebased, and the two §8 additions
 (W1's refusal-test line, P2's two SQLite lines) are kept word for word and shown to Chan.
 
 **Deviations**
