@@ -1,18 +1,22 @@
-"""Settings: where things live and how Claude is switched. Every module reads these; none reads
-`os.environ` for them directly.
+"""Settings: where things live and how Claude is switched. Every module reads these through
+`settings()`; none reads `os.environ` for them directly. (The Anthropic SDK reads the API key value
+from the environment itself; `Settings` only records whether one is present.)
 
     from bizwave_preloi.config import settings, ensure_data_dirs
     s = ensure_data_dirs()          # settings, with the data folders created and checked
     s.deals_dir, s.runlog_path, s.database_url, s.no_llm, s.llm_model ...
 
 Client files, the run log and the database live in a data folder OUTSIDE the repository, by default
-`~/BizWaveData` (`C:\\Users\\<you>\\BizWaveData` on Windows). A data folder inside the repository is
-refused; one inside a OneDrive / Dropbox style synced folder is allowed with a warning, because a
-sync client can corrupt an open SQLite database (docs/tech-plan.md section 3).
+`~/BizWaveData` (`C:\\Users\\<you>\\BizWaveData` on Windows). A data folder or run log inside the
+repository is refused (paths are compared after following links); a data folder inside a OneDrive,
+Dropbox, Google Drive or iCloud folder is allowed with a warning, because a sync client can corrupt
+an open SQLite database (docs/tech-plan.md section 3). Relative paths are taken from the folder the
+command runs in, so prefer absolute paths in `.env`.
 
 A `.env` file in the repository folder is read once per process. It never overrides a variable
-already set in the environment, and it is not read at all when BIZWAVE_LOAD_DOTENV is off (the test
-suite turns it off so a developer's API key can never reach a real call).
+already set in the environment, and it is not read at all when BIZWAVE_LOAD_DOTENV is off IN THE
+ENVIRONMENT (the test suite turns it off so a developer's API key can never reach a real call).
+Setting BIZWAVE_LOAD_DOTENV inside `.env` itself has no effect: the file is already being read.
 
 Plan: tasks/plans/2026-11-06_p1_settings.md
 """
@@ -26,8 +30,10 @@ from typing import FrozenSet, Mapping, Optional, Set
 
 APP_DIR_NAME = "BizWaveData"
 DEFAULT_MODEL = "claude-sonnet-5-5"
-# Folder-name fragments of common sync clients. A data folder under one of these gets a warning.
-SYNC_FOLDER_MARKERS = ("onedrive", "dropbox", "google drive", "icloud")
+# Folder-name fragments of common sync clients (matched case-insensitively against each folder name
+# in the path). A data folder under one of these gets a warning.
+SYNC_FOLDER_MARKERS = ("onedrive", "dropbox", "google drive", "googledrive", "my drive", "icloud",
+                       "mobile documents", "clouddocs", "cloudstorage")
 
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off"}
@@ -133,21 +139,32 @@ def settings(dotenv_path: Optional[Path] = None) -> Settings:
 
 # --------------------------------------------------------------------------- data folders
 
+def _real(path: Path) -> str:
+    """Absolute, links followed (also for folders that do not exist yet), case-folded on Windows."""
+    return os.path.normcase(str(Path(path).resolve(strict=False)))
+
+
 def _inside(child: Path, parent: Path) -> bool:
-    c = os.path.normcase(os.path.abspath(child))
-    p = os.path.normcase(os.path.abspath(parent))
+    c, p = _real(child), _real(parent)
     return c == p or c.startswith(p.rstrip(os.sep) + os.sep)
 
 
 def ensure_data_dirs(s: Optional[Settings] = None) -> Settings:
-    """Check where the data folder is, then create it with deals/ and samples/ (safe to repeat).
-    Raises DataFolderError for a folder inside the repository, before creating anything."""
+    """Check where the data folder and run log are, then create the data folder with deals/ and
+    samples/ (safe to repeat). Raises DataFolderError, before creating anything, when either is
+    inside the repository."""
     s = s or settings()
-    if REPO_ROOT is not None and _inside(s.data_dir, REPO_ROOT):
-        raise DataFolderError(
-            f"The data folder {s.data_dir} is inside the repository {REPO_ROOT}. Client files must "
-            f"live outside it: set BIZWAVE_DATA_DIR to a folder outside the repository "
-            f"(default ~/{APP_DIR_NAME}).")
+    if REPO_ROOT is not None:
+        if _inside(s.data_dir, REPO_ROOT):
+            raise DataFolderError(
+                f"The data folder {s.data_dir} is inside the repository {REPO_ROOT}. Client files "
+                f"must live outside it: set BIZWAVE_DATA_DIR to a folder outside the repository "
+                f"(default ~/{APP_DIR_NAME}).")
+        if _inside(s.runlog_path, REPO_ROOT):
+            raise DataFolderError(
+                f"The run log {s.runlog_path} is inside the repository {REPO_ROOT}. It holds model "
+                f"outputs for client deals: set BIZWAVE_RUNLOG to a path outside the repository, or "
+                f"leave it empty to use <data folder>/runlog.jsonl.")
     synced = next((part for part in s.data_dir.parts
                    if any(marker in part.lower() for marker in SYNC_FOLDER_MARKERS)), None)
     if synced:
