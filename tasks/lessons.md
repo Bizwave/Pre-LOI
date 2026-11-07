@@ -33,6 +33,10 @@ by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]
   b's chat wording differed from the line applied. (source: W1 review round 2, should-fix 2)
 - [note] A mechanical check fails closed: when it cannot find what it reads (a heading, a date), it
   reports a problem instead of skipping the file. (source: W1 review round 2, should-fix 3)
+- [note] Every question to Chan carries my recommendation, what each option changes now and later, and
+  what could break; ask only what his rules reserve for him (CLAUDE.md text, gate edits) or what is
+  genuinely his call, and own the rest. Questions without impact read as shifting responsibility.
+  (source: Chan's correction, 2026-11-06 17:29)
 
 ## P1 settings and data folder (2026-11-06, branch `p1-settings`)
 

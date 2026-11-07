@@ -1,7 +1,7 @@
 # 2026-11-06 — W1 Self-improvement loop (workflow packet)
 
-Status: **waiting for Chan** after review round 2 (PASS WITH FIXES): the exact wording of b, the details
-of d as built, and a go-ahead on this plan as it now stands (see Reviewer Note, "Open for Chan now").
+Status: **verifying after correction round 2** · go-ahead 2026-11-06 17:29 PT; d's details approved; the
+exact wording of b still open (see Reviewer Note).
 Chan's "2. Go ahead" (chat, 16:26) approved the proposal below, not this plan, which was written afterwards.
 Branch: `w1-lessons-loop` · Gate: `tests/plans/test_2026_11_06_w1_lessons_loop.py` · Budget: 1 hour
 Research step skipped: light packet. Not one of P1–P15: a workflow packet ("W") before P2 so P2 uses it.
@@ -188,6 +188,19 @@ go-ahead for this plan.
 2. d: OK the details as built (above), or name what to change.
 3. A go-ahead on this plan as it now stands. Until it is recorded here, `tests/test_workflow.py` reports
    this plan RED by design.
+
+**Chan's answers, 2026-11-06 17:29 PT (chat), as given:** "1. b - what's the difference? / 2. d - Yes -
+checks every plan, agreed / 3. go ahead / 4. yes approved" (4 is the P2 spec amendment).
+- 1 (b): a question, not a choice. The difference and its impact were explained in chat right after
+  (two words: "gate test" vs "new test", "first-run result" vs "first result"; no product impact;
+  recommendation: keep the applied wording). **Still open**; CLAUDE.md:135 stays as applied until Chan
+  picks.
+- 2 (d): the details as built are approved.
+- 3: go-ahead on this plan as it stands (Revision log row 2026-11-06 17:24).
+- Also: "can you make sure you also share impact on my decisions? … Make sure all responses should not
+  result in breakage of the product." Captured as a lesson.
+
+Go-ahead: 2026-11-06 17:29 PT (chat: "3. go ahead")
 
 ## Gate — first run
 6 Nov, before any change: 11 failed, 1 passed. Each failure is the missing rule or file it tests
