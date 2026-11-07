@@ -4,6 +4,43 @@ Newest first. One entry per packet or session, written by `/lessons` at close an
 is found (CLAUDE.md section 6, "Self-improvement"). Every "For Claude Code (Me)" line carries a status set
 by `/improve`: `[note]`, `[promoted → where it is now enforced]` or `[retired]`.
 
+## P3 command line (2026-11-06, branch `p3-cli`)
+
+### For You (Chan)
+- The review showed how a wrong `--from` folder would mix clients: a folder that *contains* BizWaveData
+  was accepted, and intake copied the live database and another deal's CIM into this deal, then started
+  its clock. Fixed in round 1. Nothing undoes a mistaken intake yet; I will ask you about a `--dry-run`.
+- `BIZWAVE_BACKUP_DIR` will hold a copy of every client file. It needs the same protection as
+  BizWaveData: encrypted storage, and a Claude Code deny rule (your OK needed; asked at close).
+
+### For Claude Code (Me)
+- [note] Location refusals work in both directions and through links: refuse a folder that *contains* a
+  protected folder (data, deals, backups, the repository) as well as one inside it, and compare paths with
+  `config._real()` (links followed, case folded), never with `==`. Same kind as P1's run-log location gap:
+  a promotion candidate for `/improve`. (source: P3 review round 1, should-fixes 1 and 8)
+- [note] "Never overwrite" holds against every record of a name and through interruptions: pick names
+  against recorded paths as well as the disk; write to an exclusive temporary file and link it into place;
+  a backup never replaces a copy that differs (a difference means damage), it keeps both; a snapshot is
+  written as `.partial` and renamed. Same kind as P2's destructive-defaults note: a promotion candidate.
+  (source: P3 review round 1, should-fixes 3, 4, 5 and 6)
+- [note] Every keyword pattern gets a near-miss test, a name that must not match ("NDA - Confidential
+  Information", "Forecast" containing "recast"). (source: P3 review round 1, should-fix 2)
+- [note] One bad item never stops a batch: catch per-item errors, including `OSError`, into that item's
+  problem; the command line catches `OSError` at its edge and prints one line. (source: P3 review round 1,
+  should-fix 7)
+- [note] A new setting arrives with its test isolation (`_CLEARED` in conftest) and, if it names a folder
+  that holds client data, the same deny-rule guidance as the data folder, in the same commit. (source: P3
+  review round 1, should-fixes 9 and 11)
+- [note] Every case the plan promises a test for gets one; check it by deleting the line that implements
+  it and watching a test fail. (source: P3 review round 1, should-fix 10)
+- [note] The contract lagged the code a third time (P1, P2, P3): clarifications made while writing the
+  gate (`recorded`, the no-op upgrade, `hours_since_package_complete`) went into a note, not the contract.
+  Same kind in three packets: must be promoted at close (reviewer checklist and `/execute`; Chan's OK).
+  (source: P3 review round 1, should-fix 12)
+- [note] A gate test whose first failure is a setup error (the missing CLI) has not shown that it fails
+  for its own reason; break the behaviour in a scratch copy and record that run. Repeat of a promoted P1
+  lesson. (source: P3 review round 1, nit 20)
+
 ## P2 database core (2026-11-06, branch `p2-database`)
 
 ### For You (Chan)
